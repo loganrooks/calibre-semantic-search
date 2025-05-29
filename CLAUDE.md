@@ -3,6 +3,17 @@
 ## Project Overview
 This is a Calibre plugin that adds AI-powered semantic search capabilities specifically optimized for philosophical and academic texts. It uses vector embeddings to enable conceptual similarity search beyond traditional keyword matching.
 
+## Important: Specification Documents
+This project is based on comprehensive specification documents located in `semantic_docs/`:
+- **calibre-semantic-spec-01.md**: Executive Summary & Quick Start Guide
+- **calibre-semantic-spec-02.md**: Core Requirements Specification (FR, NFR, PRR)
+- **calibre-semantic-spec-03.md**: Architecture Design Document
+- **calibre-semantic-spec-04.md**: Calibre Integration Guide
+- **calibre-semantic-spec-05.md**: Testing & Verification Specification
+- **calibre-semantic-spec-06.md**: Development Workflow Guide (SPARC methodology)
+
+**⚠️ IMPORTANT**: Always refer to these specification documents for detailed requirements, architectural decisions, and implementation guidelines. This CLAUDE.md provides a quick reference, but the specs are the authoritative source.
+
 ## Key Technologies
 - **Language**: Python 3.8+
 - **UI Framework**: Qt 5.12+ (via Calibre)
@@ -136,24 +147,32 @@ git push origin v1.0.0
 
 ## Important Architectural Decisions
 
-1. **Plugin-Based Architecture**: All functionality via Calibre's plugin system, no core modifications
-2. **SQLite with sqlite-vec**: For vector storage instead of external vector DB
-3. **Multi-Provider Embeddings**: Fallback chain for reliability
-4. **Hybrid Chunking**: Smart text chunking that preserves philosophical arguments
-5. **Philosophy-Aware Search**: Special modes for dialectical and genealogical search
+These decisions are detailed in `semantic_docs/calibre-semantic-spec-03.md`:
+
+1. **Plugin-Based Architecture**: All functionality via Calibre's plugin system, no core modifications (see ADR-001 in spec-03)
+2. **SQLite with sqlite-vec**: For vector storage instead of external vector DB (see ADR-002 in spec-03)
+3. **Multi-Provider Embeddings**: Fallback chain for reliability (see ADR-003 in spec-03)
+4. **Hybrid Chunking**: Smart text chunking that preserves philosophical arguments (see FR-013 in spec-02)
+5. **Philosophy-Aware Search**: Special modes for dialectical and genealogical search (see PRR-010/011 in spec-02)
 
 ## Performance Targets
-- Search latency: <100ms for 10,000 books
-- Indexing speed: ≥50 books/hour
-- Memory usage: <500MB during operation
-- Storage: ~4.4GB per 1,000 books (768-dim embeddings)
+
+From `semantic_docs/calibre-semantic-spec-02.md` (NFR section):
+- Search latency: <100ms for 10,000 books (NFR-001)
+- Indexing speed: ≥50 books/hour (NFR-002)
+- Memory usage: <500MB during operation (NFR-003)
+- Storage: ~4.4GB per 1,000 books with 768-dim embeddings (NFR-004)
 
 ## Key Requirements
-- **FR-001**: Basic semantic search with >0.7 similarity
-- **FR-010**: Multi-provider embedding generation
-- **FR-020**: Viewer context menu integration
-- **NFR-001**: Search response time targets
-- **PRR-001**: Complex philosophical concept support
+
+Core requirements from the specifications:
+- **FR-001**: Basic semantic search with >0.7 similarity (spec-02)
+- **FR-010**: Multi-provider embedding generation (spec-02)
+- **FR-020**: Viewer context menu integration (spec-02)
+- **NFR-001**: Search response time targets (spec-02)
+- **PRR-001**: Complex philosophical concept support (spec-02)
+
+For complete requirements, see `semantic_docs/calibre-semantic-spec-02.md`
 
 ## Testing Philosophy
 - Test-Driven Development (TDD)
@@ -211,7 +230,17 @@ git push origin v1.0.0
 - [ ] Plugin ZIP built and tested
 - [ ] GitHub release created
 
+## Specification Quick Reference
+
+When working on specific features, consult:
+- **Requirements**: See spec-02 for all FR (Functional), NFR (Non-Functional), and PRR (Philosophical Research) requirements
+- **Architecture**: See spec-03 for component design, data flow, and architectural decisions
+- **Calibre Integration**: See spec-04 for plugin hooks, viewer integration, and platform considerations
+- **Testing**: See spec-05 for test categories, philosophical test cases, and acceptance criteria
+- **Development Process**: See spec-06 for SPARC methodology and workflow guidelines
+
 ## Contact and Resources
 - Calibre Plugin Development: https://manual.calibre-ebook.com/creating_plugins.html
 - SQLite-vec Documentation: https://github.com/asg017/sqlite-vec
+- Project Specifications: `semantic_docs/` directory
 - Project Issues: GitHub Issues (when repository is created)

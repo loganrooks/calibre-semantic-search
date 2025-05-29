@@ -69,4 +69,5 @@ credentials.json
 .env.local
 
 # Build artifacts
-calibre-semantic-search-*.zip
+calibre-semantic-search-*.zip# Backup files
+*_backup.py

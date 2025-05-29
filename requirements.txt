@@ -1,0 +1,11 @@
+# Core dependencies
+numpy>=1.19.0,<2.0.0
+litellm>=1.0.0
+msgpack>=1.0.0
+
+# Optional dependencies for different providers
+# openai>=1.0.0  # For OpenAI provider
+# cohere>=4.0.0  # For Cohere provider
+# google-cloud-aiplatform>=1.0.0  # For Vertex AI
+
+# Note: sqlite-vec must be downloaded separately as a binary

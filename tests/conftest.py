@@ -1,0 +1,162 @@
+"""
+Pytest configuration and fixtures
+"""
+
+import pytest
+import sys
+import tempfile
+from pathlib import Path
+from unittest.mock import Mock, MagicMock
+
+# Add the plugin directory to sys.path for testing
+plugin_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(plugin_dir))
+
+from PyQt5.QtWidgets import QApplication
+
+
+@pytest.fixture(scope='session')
+def qapp():
+    """Create QApplication for GUI tests"""
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication([])
+    yield app
+    
+
+@pytest.fixture
+def tmp_library(tmp_path):
+    """Create a temporary Calibre library for testing"""
+    library_path = tmp_path / "test_library"
+    library_path.mkdir()
+    
+    # Create basic library structure
+    (library_path / "metadata.db").touch()
+    (library_path / "semantic_search").mkdir()
+    
+    return library_path
+
+
+@pytest.fixture
+def mock_calibre_gui(tmp_library):
+    """Mock Calibre GUI object for testing"""
+    gui = Mock()
+    gui.library_path = str(tmp_library)
+    gui.current_db = Mock()
+    gui.current_db.new_api = Mock()
+    
+    # Mock current view
+    gui.current_view = Mock()
+    gui.current_view.return_value.selectionModel.return_value.selectedRows.return_value = []
+    
+    # Mock library view
+    gui.library_view = Mock()
+    
+    return gui
+
+
+@pytest.fixture
+def mock_config(tmp_path):
+    """Create a mock configuration for testing"""
+    from calibre_plugins.semantic_search.config import SemanticSearchConfig
+    config_path = tmp_path / "config"
+    config_path.mkdir()
+    return SemanticSearchConfig(str(config_path))
+
+
+@pytest.fixture
+def sample_text():
+    """Sample philosophical text for testing"""
+    return """
+    Being and Time (German: Sein und Zeit) is the 1927 magnum opus of German 
+    philosopher Martin Heidegger and a key document of existentialism. Being 
+    and Time had a notable impact on subsequent philosophy, literary theory and 
+    many other fields. Its controversial stature in intellectual history has 
+    been favorably compared with several works by Kant and Hegel.
+    
+    The book attempts to revive ontology through an analysis of Dasein, or 
+    "being-in-the-world." It is also noted for an array of neologisms and 
+    complex language, as well as an extended treatment of "authenticity" as a 
+    means to grasp and confront the unique and finite possibilities of the 
+    individual.
+    """
+
+
+@pytest.fixture
+def sample_embeddings():
+    """Sample embeddings for testing"""
+    import numpy as np
+    
+    # Create deterministic embeddings for testing
+    np.random.seed(42)
+    embeddings = {
+        'being': np.random.rand(768).astype(np.float32),
+        'time': np.random.rand(768).astype(np.float32),
+        'dasein': np.random.rand(768).astype(np.float32),
+        'existence': np.random.rand(768).astype(np.float32),
+    }
+    
+    return embeddings
+
+
+@pytest.fixture
+def mock_embedding_provider():
+    """Mock embedding provider for testing"""
+    provider = Mock()
+    provider.get_dimensions.return_value = 768
+    provider.generate_embedding.return_value = np.random.rand(768).astype(np.float32)
+    provider.generate_batch.return_value = [
+        np.random.rand(768).astype(np.float32) for _ in range(10)
+    ]
+    return provider
+
+
+class MockCalibreDB:
+    """Mock Calibre database API"""
+    
+    def __init__(self, books=None):
+        self.books = books or {}
+        
+    def all_book_ids(self):
+        return list(self.books.keys())
+        
+    def get_metadata(self, book_id):
+        book = self.books.get(book_id, {})
+        metadata = Mock()
+        metadata.title = book.get('title', f'Book {book_id}')
+        metadata.authors = book.get('authors', ['Unknown'])
+        metadata.tags = book.get('tags', [])
+        return metadata
+        
+    def format_abspath(self, book_id, fmt):
+        return f"/fake/path/book_{book_id}.{fmt.lower()}"
+        
+    def formats(self, book_id):
+        return self.books.get(book_id, {}).get('formats', ['EPUB'])
+
+
+@pytest.fixture
+def mock_calibre_db():
+    """Create a mock Calibre database with test data"""
+    books = {
+        1: {
+            'title': 'Being and Time',
+            'authors': ['Martin Heidegger'],
+            'tags': ['philosophy', 'existentialism'],
+            'formats': ['EPUB', 'PDF']
+        },
+        2: {
+            'title': 'The Republic',
+            'authors': ['Plato'],
+            'tags': ['philosophy', 'ancient'],
+            'formats': ['EPUB']
+        },
+        3: {
+            'title': 'Critique of Pure Reason',
+            'authors': ['Immanuel Kant'],
+            'tags': ['philosophy', 'epistemology'],
+            'formats': ['PDF']
+        }
+    }
+    
+    return MockCalibreDB(books)

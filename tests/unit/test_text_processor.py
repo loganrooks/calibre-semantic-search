@@ -3,7 +3,13 @@ Unit tests for text processing and chunking
 """
 
 import pytest
-from calibre_plugins.semantic_search.core.text_processor import (
+import sys
+from pathlib import Path
+
+# Direct import without going through plugin __init__.py
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "calibre_plugins" / "semantic_search"))
+
+from core.text_processor import (
     TextProcessor, Chunk, ParagraphChunker, SlidingWindowChunker, 
     PhilosophicalChunker
 )

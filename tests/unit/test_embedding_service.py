@@ -6,8 +6,13 @@ import pytest
 import numpy as np
 from unittest.mock import Mock, AsyncMock, patch
 import asyncio
+import sys
+from pathlib import Path
 
-from calibre_plugins.semantic_search.core.embedding_service import (
+# Direct import without going through plugin __init__.py
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "calibre_plugins" / "semantic_search"))
+
+from core.embedding_service import (
     EmbeddingService, BaseEmbeddingProvider, MockProvider,
     VertexAIProvider, OpenAIProvider, EmbeddingCache
 )
@@ -254,9 +259,7 @@ class TestEmbeddingServiceFactory:
     
     def test_create_service_with_mock(self):
         """Test creating service with mock provider"""
-        from calibre_plugins.semantic_search.core.embedding_service import (
-            create_embedding_service
-        )
+        from core.embedding_service import create_embedding_service
         
         config = {
             'embedding_provider': 'mock',
@@ -275,9 +278,7 @@ class TestEmbeddingServiceFactory:
         
     def test_create_service_with_api_provider(self):
         """Test creating service with API provider"""
-        from calibre_plugins.semantic_search.core.embedding_service import (
-            create_embedding_service
-        )
+        from core.embedding_service import create_embedding_service
         
         config = {
             'embedding_provider': 'openai',

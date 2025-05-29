@@ -6,8 +6,13 @@ import pytest
 import numpy as np
 from unittest.mock import Mock, AsyncMock, MagicMock
 from typing import List, Dict, Any
+import sys
+from pathlib import Path
 
-from calibre_plugins.semantic_search.core.search_engine import (
+# Direct import without going through plugin __init__.py
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "calibre_plugins" / "semantic_search"))
+
+from core.search_engine import (
     SearchEngine, SearchOptions, SearchScope, SearchMode, SearchResult
 )
 
@@ -348,13 +353,42 @@ class TestSearchModes:
 class TestFindSimilar:
     """Test finding similar chunks"""
     
-    @pytest.mark.asyncio
-    async def test_find_similar_chunks(self, search_engine, mock_data):
-        """Test finding similar chunks to a given chunk"""
-        # Add embedding to mock data
-        mock_data[0]['embedding'] = np.random.rand(768)
+    @pytest.fixture
+    def mock_data_with_embedding(self):
+        """Sample data with embeddings for testing"""
+        return [
+            {
+                'chunk_id': 1,
+                'book_id': 100,
+                'title': 'Being and Time',
+                'authors': ['Martin Heidegger'],
+                'chunk_text': 'Dasein is essentially being-in-the-world',
+                'chunk_index': 0,
+                'similarity': 0.9,
+                'embedding': np.random.rand(768),
+                'metadata': {}
+            }
+        ]
         
-        results = await search_engine.find_similar(chunk_id=1, limit=5)
+    @pytest.fixture
+    def search_engine_for_similar(self, mock_data_with_embedding):
+        """Create search engine for similar search tests"""
+        repository = MockRepository(mock_data_with_embedding)
+        embedding_service = Mock()
+        embedding_service.generate_embedding = AsyncMock(
+            return_value=np.random.rand(768)
+        )
+        return SearchEngine(repository, embedding_service)
+    
+    @pytest.mark.asyncio
+    async def test_find_similar_chunks(self, search_engine_for_similar, mock_data_with_embedding):
+        """Test finding similar chunks to a given chunk"""
+        # Mock the repository to have a get_chunk method
+        search_engine_for_similar.repository.get_chunk = AsyncMock(
+            return_value=mock_data_with_embedding[0]
+        )
+        
+        results = await search_engine_for_similar.find_similar(chunk_id=1, limit=5)
         
         # Should not include the chunk itself
         assert all(r.chunk_id != 1 for r in results)

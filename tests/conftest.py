@@ -7,21 +7,14 @@ import sys
 import tempfile
 from pathlib import Path
 from unittest.mock import Mock, MagicMock
+import numpy as np
 
 # Add the plugin directory to sys.path for testing
 plugin_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(plugin_dir))
 
-from PyQt5.QtWidgets import QApplication
 
-
-@pytest.fixture(scope='session')
-def qapp():
-    """Create QApplication for GUI tests"""
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication([])
-    yield app
+# QApplication fixture moved to ui_conftest.py for UI tests only
     
 
 @pytest.fixture
@@ -57,11 +50,28 @@ def mock_calibre_gui(tmp_library):
 
 @pytest.fixture
 def mock_config(tmp_path):
-    """Create a mock configuration for testing"""
-    from calibre_plugins.semantic_search.config import SemanticSearchConfig
-    config_path = tmp_path / "config"
-    config_path.mkdir()
-    return SemanticSearchConfig(str(config_path))
+    """Create a mock configuration dict for testing"""
+    return {
+        'embedding_provider': 'mock',
+        'embedding_model': 'mock-model',
+        'api_keys': {},
+        'performance': {
+            'cache_enabled': True,
+            'cache_size_mb': 10,
+            'batch_size': 32,
+            'max_concurrent_requests': 4
+        },
+        'search': {
+            'default_limit': 20,
+            'default_threshold': 0.7,
+            'default_scope': 'library'
+        },
+        'chunking': {
+            'strategy': 'philosophical',
+            'chunk_size': 512,
+            'overlap': 64
+        }
+    }
 
 
 @pytest.fixture

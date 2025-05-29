@@ -1,0 +1,71 @@
+# Python
+*.pyc
+__pycache__/
+*.egg-info/
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+*.egg
+*.manifest
+*.spec
+
+# Testing
+.coverage
+.pytest_cache/
+htmlcov/
+.tox/
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Project specific
+*.db
+*.log
+*.sqlite
+embeddings/
+cache/
+temp/
+semantic_search/
+*.zip
+
+# Sensitive data
+*.key
+*.pem
+api_keys.json
+credentials.json
+.env
+.env.local
+
+# Build artifacts
+calibre-semantic-search-*.zip

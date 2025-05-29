@@ -56,6 +56,7 @@ Desktop.ini
 embeddings/
 cache/
 temp/
+# Only ignore semantic_search at root (for runtime data), not in calibre_plugins
 /semantic_search/
 *.zip
 

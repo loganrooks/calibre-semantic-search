@@ -46,6 +46,7 @@ python_classes = "Test*"
 python_functions = "test_*"
 markers = [
     "benchmark: marks tests as performance benchmarks (deselect with '-m \"not benchmark\"')",
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
 ]
 
 [tool.coverage.run]

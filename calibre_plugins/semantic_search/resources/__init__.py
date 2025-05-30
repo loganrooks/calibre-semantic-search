@@ -1,0 +1,1 @@
+# Resources package for Semantic Search plugin

@@ -341,6 +341,44 @@ For complete requirements, see `semantic_docs/calibre-semantic-spec-02.md`
 - Refactor with confidence
 - Maintain >80% code coverage
 
+## ⚠️ CRITICAL: TDD VERIFICATION REQUIREMENTS
+
+**MANDATORY BEFORE ANY TDD CLAIMS:**
+
+### 1. Test Environment Verification
+```bash
+# MUST verify tests can actually run before writing implementation
+python3 -m pytest tests/target_test_file.py -v
+# If tests fail with import errors, fix environment FIRST
+```
+
+### 2. Red-Green-Refactor Discipline
+- **RED**: Write failing test → RUN TEST → Confirm it fails
+- **GREEN**: Write minimal code → RUN TEST → Confirm it passes
+- **REFACTOR**: Improve code → RUN TEST → Confirm still passes
+
+### 3. Never Claim TDD Without Verification
+- ❌ NEVER say "following TDD" without running tests
+- ❌ NEVER write implementation before seeing test failures
+- ❌ NEVER commit code claiming TDD compliance without test execution
+- ✅ ALWAYS run tests at each step of Red-Green-Refactor
+
+### 4. Test Isolation Requirements
+- Tests must run without external dependencies (Calibre, Qt, etc.)
+- Use mocking for external dependencies
+- Establish test environment before writing any tests
+- Verify test runner works before proceeding
+
+### 5. Failure Recovery Protocol
+If TDD process fails:
+1. Stop immediately
+2. Document failure in DEVELOPMENT_FEEDBACK.md
+3. Fix test environment
+4. Restart from Red phase
+5. Never proceed without running tests
+
+**REMEMBER: TDD is about DISCIPLINE, not documentation**
+
 ## Common Tasks
 
 ### Adding a New Embedding Provider
@@ -448,11 +486,11 @@ For complete requirements, see `semantic_docs/calibre-semantic-spec-02.md`
 
 To provide feedback or report issues with Claude Code assistance:
 
-1. **Development Issues**: Log in `DEVELOPMENT_FEEDBACK.md` (create if needed)
+1. **Development Issues**: Log in `DEVELOPMENT_FEEDBACK.md`
    ```markdown
    ## [Date] Issue/Feedback Title
-   **Type**: Bug/Enhancement/Question
-   **Component**: Core/UI/Testing/Documentation
+   **Type**: Bug/Enhancement/Question/CRITICAL_VIOLATION
+   **Component**: Core/UI/Testing/Documentation/Process
    **Description**: [Detailed description]
    **Expected**: [What should happen]
    **Actual**: [What actually happened]
@@ -465,7 +503,24 @@ To provide feedback or report issues with Claude Code assistance:
    - Performance concerns
    - Architecture violations
 
-3. **Claude Code Tool Issues**: Report at https://github.com/anthropics/claude-code/issues
+3. **Process Violations**: IMMEDIATELY log any TDD/SPARC violations
+   - Document in DEVELOPMENT_FEEDBACK.md with CRITICAL severity
+   - Include prevention measures
+   - Update this file with lessons learned
+
+4. **Claude Code Tool Issues**: Report at https://github.com/anthropics/claude-code/issues
+
+### ⚠️ MANDATORY PRE-WORK CHECKLIST
+
+Before starting ANY development work:
+
+- [ ] Read relevant specification documents in semantic_docs/
+- [ ] Verify test environment can run target tests
+- [ ] Confirm TDD/SPARC methodology requirements
+- [ ] Check DEVELOPMENT_FEEDBACK.md for previous failures
+- [ ] Set up proper dependency mocking if needed
+
+**If ANY checklist item fails, STOP and fix environment first**
 
 ## Specification Quick Reference
 
@@ -482,4 +537,15 @@ When working on specific features, consult:
 - Project Specifications: `semantic_docs/` directory
 - Implementation TODOs: `TODO_IMPLEMENTATION_GAPS.md`
 - Analysis Reports: `ANALYSIS_REPORT_*.md` files
+- **Development Failures**: `DEVELOPMENT_FEEDBACK.md` (CHECK BEFORE STARTING)
 - Claude Code Issues: https://github.com/anthropics/claude-code/issues
+
+## ⚠️ CRITICAL REMINDERS
+
+1. **READ DEVELOPMENT_FEEDBACK.md BEFORE ANY WORK**
+2. **NEVER CLAIM TDD WITHOUT RUNNING TESTS**
+3. **TEST ENVIRONMENT MUST WORK BEFORE IMPLEMENTATION**
+4. **RED-GREEN-REFACTOR IS A DISCIPLINE, NOT DOCUMENTATION**
+5. **PROCESS VIOLATIONS ARE UNACCEPTABLE**
+
+**When in doubt: RUN THE TESTS**

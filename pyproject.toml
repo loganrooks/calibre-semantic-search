@@ -44,6 +44,9 @@ testpaths = [
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
+markers = [
+    "benchmark: marks tests as performance benchmarks (deselect with '-m \"not benchmark\"')",
+]
 
 [tool.coverage.run]
 source = ["calibre_plugins.semantic_search"]

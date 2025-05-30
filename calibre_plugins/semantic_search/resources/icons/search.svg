@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Search magnifying glass -->
+  <circle cx="24" cy="24" r="16" stroke="#2E7D32" stroke-width="3" fill="none"/>
+  <line x1="35.5" y1="35.5" x2="50" y2="50" stroke="#2E7D32" stroke-width="3" stroke-linecap="round"/>
+  
+  <!-- Brain/neural network pattern to represent semantic search -->
+  <g stroke="#1976D2" stroke-width="1.5" fill="none" opacity="0.7">
+    <!-- Neural connections -->
+    <circle cx="20" cy="18" r="2" fill="#1976D2"/>
+    <circle cx="28" cy="20" r="2" fill="#1976D2"/>
+    <circle cx="22" cy="28" r="2" fill="#1976D2"/>
+    <circle cx="30" cy="26" r="2" fill="#1976D2"/>
+    
+    <!-- Connection lines -->
+    <line x1="20" y1="18" x2="28" y2="20"/>
+    <line x1="20" y1="18" x2="22" y2="28"/>
+    <line x1="28" y1="20" x2="30" y2="26"/>
+    <line x1="22" y1="28" x2="30" y2="26"/>
+  </g>
+  
+  <!-- Subtle gradient background -->
+  <defs>
+    <radialGradient id="bgGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#E3F2FD;stop-opacity:0.3"/>
+      <stop offset="100%" style="stop-color:#BBDEFB;stop-opacity:0.1"/>
+    </radialGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#bgGrad)"/>
+</svg>

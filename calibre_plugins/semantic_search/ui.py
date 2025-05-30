@@ -227,6 +227,18 @@ def get_icons(name):
     """
     Get icon from resources
     """
-    # For now, return a default icon
-    # This will be updated when we add actual icons
+    import os
+    from PyQt5.Qt import QPixmap
+    
+    # Get the directory where this module is located
+    plugin_dir = os.path.dirname(__file__)
+    icon_path = os.path.join(plugin_dir, 'resources', 'icons', name)
+    
+    # Try to load the icon
+    if os.path.exists(icon_path):
+        pixmap = QPixmap(icon_path)
+        if not pixmap.isNull():
+            return QIcon(pixmap)
+    
+    # Fallback to default Calibre icon or empty icon
     return QIcon()

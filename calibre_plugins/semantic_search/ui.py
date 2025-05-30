@@ -4,7 +4,7 @@ Main UI interface for Semantic Search plugin
 
 from calibre.gui2 import error_dialog, info_dialog
 from calibre.gui2.actions import InterfaceAction
-from PyQt5.Qt import QAction, QIcon, QMenu, QToolBar
+from PyQt5.Qt import QAction, QIcon, QMenu, Qt
 
 from calibre_plugins.semantic_search.config import SemanticSearchConfig
 
@@ -21,7 +21,7 @@ class SemanticSearchInterface(InterfaceAction):
         "Search for books and passages by meaning",
         None,
     )
-    popup_type = QToolBar.ToolButtonTextBesideIcon
+    popup_type = Qt.ToolButtonTextBesideIcon
     action_add_menu = True
 
     def genesis(self):

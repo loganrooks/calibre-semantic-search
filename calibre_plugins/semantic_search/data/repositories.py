@@ -365,7 +365,7 @@ class MockCalibreRepository(ICalibreRepository):
         results = []
         for book_id, book in self.books.items():
             if 'author' in filters:
-                if not any(filters['author'] in author 
+                if not any(filters['author'].lower() in author.lower() 
                           for author in book.get('authors', [])):
                     continue
             if 'tags' in filters:

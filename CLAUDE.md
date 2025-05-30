@@ -115,28 +115,93 @@ test(philosophy): add Heidegger concept tests
 ```
 
 ### Git Workflow
-1. **Feature Development**:
+
+#### Branch Structure
+- **master**: Production-ready code only. Protected branch.
+- **develop**: Integration branch for features. All feature branches merge here.
+- **feature/\***: Feature branches for new functionality
+- **bugfix/\***: Bug fix branches
+- **hotfix/\***: Emergency fixes that go directly to master
+
+#### Development Flow
+
+1. **Starting New Work**:
    ```bash
+   # Always start from updated develop
    git checkout develop
    git pull origin develop
-   git checkout -b feature/semantic-chunking
-   # Make changes
-   git add -p  # Review changes piece by piece
-   git commit -m "feat(core): implement semantic chunking algorithm"
-   git push origin feature/semantic-chunking
-   # Create PR to develop branch
+   
+   # Create feature branch with descriptive name
+   git checkout -b feature/repository-tests
+   # OR
+   git checkout -b bugfix/search-performance
    ```
 
-2. **Before Committing**:
-   - Run tests: `pytest`
-   - Run linting: `black . && isort .`
-   - Review changes: `git diff --staged`
+2. **During Development**:
+   ```bash
+   # Make atomic commits with clear messages
+   git add -p  # Review changes piece by piece
+   git commit -m "feat(core): implement repository pattern for data access"
+   
+   # Push regularly to backup work
+   git push origin feature/repository-tests
+   ```
 
-3. **Pull Request Guidelines**:
+3. **Before Creating PR**:
+   - Run all tests: `pytest`
+   - Run linting: `black . && isort .`
+   - Review changes: `git diff develop...HEAD`
+   - Update documentation if needed
+   - Ensure commits follow conventional format
+
+4. **Pull Request Guidelines**:
+   - Create PR from feature branch to `develop` (never to master)
+   - PR title should follow conventional commit format
+   - PR description must include:
+     - What changes were made and why
+     - Which specs/requirements are addressed
+     - Testing approach used
+     - Any breaking changes
    - Must pass all CI checks
    - Must have test coverage for new code
-   - Must update documentation if needed
    - Requires at least one review
+
+5. **After PR Approval**:
+   ```bash
+   # Merge via GitHub PR interface (squash if many commits)
+   # Delete feature branch after merge
+   git checkout develop
+   git pull origin develop
+   git branch -d feature/repository-tests
+   ```
+
+6. **Release Process**:
+   ```bash
+   # Only when develop is stable and tested
+   git checkout master
+   git pull origin master
+   git merge develop
+   git tag -a v1.0.0 -m "Release version 1.0.0"
+   git push origin master --tags
+   ```
+
+#### Branch Naming Conventions
+- feature/descriptive-name (e.g., feature/dialectical-search)
+- bugfix/issue-description (e.g., bugfix/embedding-memory-leak)
+- hotfix/critical-issue (e.g., hotfix/search-crash)
+
+#### Commit Message Examples
+```
+feat(search): add genealogical search mode for concept evolution
+fix(ui): prevent dialog overflow on small screens
+test(philosophy): add Hegel dialectical concept tests
+docs(api): update embedding service API documentation
+refactor(core): extract chunking strategies to separate classes
+perf(search): optimize vector similarity calculations
+chore(deps): update numpy to 1.24.0
+```
+
+#### IMPORTANT: Never commit directly to master or develop!
 
 ### Version Tagging
 Use semantic versioning: `MAJOR.MINOR.PATCH`

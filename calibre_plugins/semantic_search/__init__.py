@@ -19,7 +19,7 @@ class SemanticSearchPlugin(InterfaceActionBase):
     description = "AI-powered semantic search for philosophical texts"
     supported_platforms = ["windows", "osx", "linux"]
     author = "Calibre Semantic Search Contributors"
-    version = (0, 1, 0)  # Start at 0.1.0
+    version = (1, 0, 0)  # Version 1.0.0 - Initial Release
     minimum_calibre_version = (5, 0, 0)
 
     # This points to our actual implementation

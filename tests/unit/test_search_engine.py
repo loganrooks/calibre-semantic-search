@@ -397,5 +397,374 @@ class TestFindSimilar:
         assert scores == sorted(scores, reverse=True)
 
 
+class TestGenealogicalSearch:
+    """Test genealogical search mode"""
+    
+    @pytest.fixture
+    def genealogical_data(self):
+        """Data with publication dates for testing"""
+        return [
+            {
+                'chunk_id': 1,
+                'book_id': 100,
+                'title': 'Critique of Pure Reason (1781)',
+                'authors': ['Immanuel Kant'],
+                'chunk_text': 'The transcendental unity of apperception',
+                'chunk_index': 0,
+                'similarity': 0.9,
+                'metadata': {'pubdate': '1781'}
+            },
+            {
+                'chunk_id': 2,
+                'book_id': 101,
+                'title': 'Being and Time (1927)',
+                'authors': ['Martin Heidegger'],
+                'chunk_text': 'Dasein and temporality',
+                'chunk_index': 0,
+                'similarity': 0.85,
+                'metadata': {'pubdate': '1927'}
+            },
+            {
+                'chunk_id': 3,
+                'book_id': 102,
+                'title': 'Phenomenology of Spirit (1807)',
+                'authors': ['G.W.F. Hegel'],
+                'chunk_text': 'Absolute knowledge',
+                'chunk_index': 0,
+                'similarity': 0.8,
+                'metadata': {'pubdate': '1807'}
+            },
+            {
+                'chunk_id': 4,
+                'book_id': 103,
+                'title': 'Modern Work',
+                'authors': ['Contemporary Author'],
+                'chunk_text': 'Modern interpretation',
+                'chunk_index': 0,
+                'similarity': 0.75,
+                'metadata': {'pubdate': '2023'}  # Add pubdate for consistency
+            }
+        ]
+        
+    @pytest.mark.asyncio
+    async def test_genealogical_search_chronological_order(self, genealogical_data):
+        """Test that genealogical search orders by date"""
+        repository = MockRepository(genealogical_data)
+        embedding_service = Mock()
+        embedding_service.generate_embedding = AsyncMock(return_value=np.random.rand(768))
+        
+        engine = SearchEngine(repository, embedding_service)
+        options = SearchOptions(mode=SearchMode.GENEALOGICAL)
+        
+        results = await engine.search("consciousness", options)
+        
+        # Should be ordered chronologically
+        dates = []
+        for r in results:
+            if 'genealogy_date' in r.metadata:
+                dates.append(r.metadata['genealogy_date'])
+                
+        # Check that dates are in ascending order
+        assert dates == sorted(dates)
+        
+        # Check genealogy metadata is added
+        assert all('genealogy_order' in r.metadata for r in results)
+
+
+class TestHybridSearch:
+    """Test hybrid search mode"""
+    
+    @pytest.mark.asyncio
+    async def test_hybrid_search_combines_results(self):
+        """Test that hybrid search combines semantic and keyword results"""
+        mock_data = [
+            {
+                'chunk_id': 1, 'book_id': 100, 'title': 'Book 1',
+                'authors': ['Author 1'], 'chunk_text': 'Semantic content',
+                'chunk_index': 0, 'similarity': 0.9, 'metadata': {}
+            },
+            {
+                'chunk_id': 2, 'book_id': 101, 'title': 'Book 2',
+                'authors': ['Author 2'], 'chunk_text': 'Keyword content',
+                'chunk_index': 0, 'similarity': 0.8, 'metadata': {}
+            }
+        ]
+        
+        repository = MockRepository(mock_data)
+        embedding_service = Mock()
+        embedding_service.generate_embedding = AsyncMock(return_value=np.random.rand(768))
+        
+        engine = SearchEngine(repository, embedding_service)
+        options = SearchOptions(mode=SearchMode.HYBRID)
+        
+        results = await engine.search("test query", options)
+        
+        # Should have combined results marked as hybrid
+        assert any(r.metadata.get('search_mode') == 'hybrid' for r in results)
+
+
+class TestSearchEngineErrorHandling:
+    """Test error handling and edge cases"""
+    
+    @pytest.mark.asyncio
+    async def test_search_with_exception_in_embedding_service(self):
+        """Test handling of embedding service exceptions"""
+        repository = MockRepository([])
+        embedding_service = Mock()
+        embedding_service.generate_embedding = AsyncMock(side_effect=Exception("Embedding failed"))
+        
+        engine = SearchEngine(repository, embedding_service)
+        options = SearchOptions()
+        
+        # Should handle exception gracefully
+        with pytest.raises(Exception):
+            await engine.search("test query", options)
+            
+    @pytest.mark.asyncio
+    async def test_search_with_repository_exception(self):
+        """Test handling of repository exceptions"""
+        repository = Mock()
+        repository.search_similar = AsyncMock(side_effect=Exception("Database error"))
+        
+        embedding_service = Mock()
+        embedding_service.generate_embedding = AsyncMock(return_value=np.random.rand(768))
+        
+        engine = SearchEngine(repository, embedding_service)
+        options = SearchOptions()
+        
+        # Should handle exception gracefully
+        with pytest.raises(Exception):
+            await engine.search("test query", options)
+            
+    @pytest.mark.asyncio
+    async def test_find_similar_with_nonexistent_chunk(self):
+        """Test find_similar with non-existent chunk"""
+        repository = MockRepository([])
+        repository.get_chunk = AsyncMock(return_value=None)
+        
+        embedding_service = Mock()
+        engine = SearchEngine(repository, embedding_service)
+        
+        results = await engine.find_similar(999, limit=5)
+        assert results == []
+        
+    def test_build_scope_filters_current_book(self):
+        """Test building filters for current book scope"""
+        repository = Mock()
+        embedding_service = Mock()
+        engine = SearchEngine(repository, embedding_service)
+        
+        options = SearchOptions(
+            scope=SearchScope.CURRENT_BOOK,
+            filters={'book_id': 123}
+        )
+        
+        filters = engine._build_scope_filters(options)
+        assert filters['book_ids'] == [123]
+        
+    def test_build_scope_filters_selected_books(self):
+        """Test building filters for selected books scope"""
+        repository = Mock()
+        embedding_service = Mock()
+        engine = SearchEngine(repository, embedding_service)
+        
+        options = SearchOptions(
+            scope=SearchScope.SELECTED_BOOKS,
+            filters={'custom_filter': 'value'}
+        )
+        
+        filters = engine._build_scope_filters(options)
+        assert 'book_ids' in filters
+        assert filters['book_ids'] == []
+        
+    def test_build_scope_filters_author(self):
+        """Test building filters for author scope"""
+        repository = Mock()
+        embedding_service = Mock()
+        engine = SearchEngine(repository, embedding_service)
+        
+        options = SearchOptions(scope=SearchScope.AUTHOR)
+        filters = engine._build_scope_filters(options)
+        assert 'author' in filters
+        assert filters['author'] == []
+        
+    def test_build_scope_filters_tag(self):
+        """Test building filters for tag scope"""
+        repository = Mock()
+        embedding_service = Mock()
+        engine = SearchEngine(repository, embedding_service)
+        
+        options = SearchOptions(scope=SearchScope.TAG)
+        filters = engine._build_scope_filters(options)
+        assert 'tags' in filters
+        assert filters['tags'] == []
+        
+    def test_build_scope_filters_library(self):
+        """Test building filters for library scope"""
+        repository = Mock()
+        embedding_service = Mock()
+        engine = SearchEngine(repository, embedding_service)
+        
+        options = SearchOptions(scope=SearchScope.LIBRARY)
+        filters = engine._build_scope_filters(options)
+        # Library scope should not add additional filters
+        assert filters == {}
+        
+    def test_add_context_placeholder(self):
+        """Test context addition (placeholder implementation)"""
+        repository = Mock()
+        embedding_service = Mock()
+        engine = SearchEngine(repository, embedding_service)
+        
+        result = SearchResult(
+            chunk_id=1, book_id=100, book_title="Test",
+            authors=["Author"], chunk_text="Original text",
+            chunk_index=0, similarity_score=0.9, metadata={}
+        )
+        
+        # Current implementation just returns the same text
+        context_text = engine._add_context(result, 500)
+        assert context_text == "Original text"
+
+
+class TestSearchEngineIntegration:
+    """Integration tests for search engine"""
+    
+    @pytest.mark.asyncio
+    async def test_complete_search_workflow(self):
+        """Test complete search workflow with realistic data"""
+        mock_data = [
+            {
+                'chunk_id': 1, 'book_id': 100,
+                'title': 'Being and Time', 'authors': ['Martin Heidegger'],
+                'chunk_text': 'Dasein is essentially characterized by being-in-the-world',
+                'chunk_index': 0, 'similarity': 0.95, 'metadata': {'chapter': 'Division One'},
+                'embedding': np.random.rand(768)
+            },
+            {
+                'chunk_id': 2, 'book_id': 100,
+                'title': 'Being and Time', 'authors': ['Martin Heidegger'],
+                'chunk_text': 'The structure of care reveals the being of Dasein',
+                'chunk_index': 1, 'similarity': 0.88, 'metadata': {'chapter': 'Division Two'},
+                'embedding': np.random.rand(768)
+            },
+            {
+                'chunk_id': 3, 'book_id': 101,
+                'title': 'The Republic', 'authors': ['Plato'],
+                'chunk_text': 'Justice is the excellence of the soul',
+                'chunk_index': 0, 'similarity': 0.75, 'metadata': {'book': 'Republic'},
+                'embedding': np.random.rand(768)
+            }
+        ]
+        
+        repository = MockRepository(mock_data)
+        embedding_service = Mock()
+        embedding_service.generate_embedding = AsyncMock(return_value=np.random.rand(768))
+        
+        engine = SearchEngine(repository, embedding_service)
+        
+        # Test semantic search
+        options = SearchOptions(
+            mode=SearchMode.SEMANTIC,
+            limit=2,
+            similarity_threshold=0.8,
+            include_context=True
+        )
+        
+        results = await engine.search("existence and being", options)
+        
+        # Verify results
+        assert len(results) <= 2
+        assert all(r.similarity_score >= 0.8 for r in results)
+        assert all(isinstance(r, SearchResult) for r in results)
+        assert results[0].similarity_score >= results[1].similarity_score  # Sorted
+        
+        # Test with book filtering
+        options_filtered = SearchOptions(
+            scope=SearchScope.CURRENT_BOOK,
+            filters={'book_id': 100}
+        )
+        
+        filtered_results = await engine.search("being", options_filtered)
+        assert all(r.book_id == 100 for r in filtered_results)
+        
+        # Test find similar
+        similar_results = await engine.find_similar(chunk_id=1, limit=3)
+        assert all(r.chunk_id != 1 for r in similar_results)  # Excludes original
+        
+    @pytest.mark.asyncio
+    async def test_performance_with_large_result_set(self):
+        """Test performance with large number of results"""
+        # Create large mock dataset
+        large_data = []
+        for i in range(1000):
+            large_data.append({
+                'chunk_id': i,
+                'book_id': i // 10,  # 10 chunks per book
+                'title': f'Book {i // 10}',
+                'authors': [f'Author {i // 100}'],
+                'chunk_text': f'This is chunk {i} with content about philosophy',
+                'chunk_index': i % 10,
+                'similarity': 0.9 - (i * 0.0001),  # Decreasing similarity
+                'metadata': {}
+            })
+        
+        repository = MockRepository(large_data)
+        embedding_service = Mock()
+        embedding_service.generate_embedding = AsyncMock(return_value=np.random.rand(768))
+        
+        engine = SearchEngine(repository, embedding_service)
+        options = SearchOptions(limit=50)
+        
+        import time
+        start_time = time.time()
+        results = await engine.search("philosophy", options)
+        end_time = time.time()
+        
+        # Should complete quickly and return correct number of results
+        assert len(results) == 50
+        assert (end_time - start_time) < 1.0  # Should be fast
+        
+        # Results should be properly sorted
+        scores = [r.similarity_score for r in results]
+        assert scores == sorted(scores, reverse=True)
+
+
+class TestSearchResultTransformation:
+    """Test transformation from repository data to SearchResult objects"""
+    
+    def test_search_result_from_repository_data(self):
+        """Test creating SearchResult from repository data"""
+        repo_data = {
+            'chunk_id': 42,
+            'book_id': 123,
+            'title': 'Test Book',
+            'authors': ['Test Author', 'Co-Author'],
+            'chunk_text': 'This is test content for the chunk',
+            'chunk_index': 5,
+            'similarity': 0.87,
+            'metadata': {'chapter': 'Chapter 1', 'page': 42}
+        }
+        
+        result = SearchResult(
+            chunk_id=repo_data['chunk_id'],
+            book_id=repo_data['book_id'],
+            book_title=repo_data['title'],
+            authors=repo_data['authors'],
+            chunk_text=repo_data['chunk_text'],
+            chunk_index=repo_data['chunk_index'],
+            similarity_score=repo_data['similarity'],
+            metadata=repo_data['metadata']
+        )
+        
+        assert result.chunk_id == 42
+        assert result.book_id == 123
+        assert result.book_title == 'Test Book'
+        assert result.authors == ['Test Author', 'Co-Author']
+        assert result.similarity_score == 0.87
+        assert result.metadata['chapter'] == 'Chapter 1'
+        assert result.citation == 'Test Author, Co-Author. Test Book.'
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

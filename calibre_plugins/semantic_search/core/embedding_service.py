@@ -9,7 +9,8 @@ from abc import ABC, abstractmethod
 from functools import lru_cache
 from typing import Any, Dict, List, Optional, Protocol
 
-import numpy as np
+# Use pure Python vector operations instead of numpy
+from calibre_plugins.semantic_search.core.vector_ops import VectorOps
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -18,11 +19,11 @@ logger = logging.getLogger(__name__)
 class EmbeddingProvider(Protocol):
     """Protocol for embedding providers"""
 
-    async def generate_embedding(self, text: str) -> np.ndarray:
+    async def generate_embedding(self, text: str) -> List[float]:
         """Generate embedding for single text"""
         ...
 
-    async def generate_batch(self, texts: List[str]) -> List[np.ndarray]:
+    async def generate_batch(self, texts: List[str]) -> List[List[float]]:
         """Generate embeddings for multiple texts"""
         ...
 
@@ -43,11 +44,11 @@ class BaseEmbeddingProvider(ABC):
         self.model = model
 
     @abstractmethod
-    async def generate_embedding(self, text: str) -> np.ndarray:
+    async def generate_embedding(self, text: str) -> List[float]:
         """Generate embedding for single text"""
         pass
 
-    async def generate_batch(self, texts: List[str]) -> List[np.ndarray]:
+    async def generate_batch(self, texts: List[str]) -> List[List[float]]:
         """Default batch implementation - override for efficiency"""
         tasks = [self.generate_embedding(text) for text in texts]
         return await asyncio.gather(*tasks)
@@ -86,7 +87,7 @@ class VertexAIProvider(BaseEmbeddingProvider):
         self.location = location
         self._dimensions = 768
 
-    async def generate_embedding(self, text: str) -> np.ndarray:
+    async def generate_embedding(self, text: str) -> List[float]:
         """Generate embedding using Vertex AI"""
         try:
             # Import here to avoid dependency if not used
@@ -101,13 +102,13 @@ class VertexAIProvider(BaseEmbeddingProvider):
             )
 
             embedding = response["data"][0]["embedding"]
-            return np.array(embedding, dtype=np.float32)
+            return embedding  # Already a list of floats
 
         except Exception as e:
             logger.error(f"Vertex AI embedding error: {e}")
             raise
 
-    async def generate_batch(self, texts: List[str]) -> List[np.ndarray]:
+    async def generate_batch(self, texts: List[str]) -> List[List[float]]:
         """Batch generation for Vertex AI"""
         try:
             from litellm import aembedding
@@ -123,7 +124,7 @@ class VertexAIProvider(BaseEmbeddingProvider):
             )
 
             embeddings = [
-                np.array(item["embedding"], dtype=np.float32)
+                item["embedding"]  # Already a list of floats
                 for item in response["data"]
             ]
             return embeddings
@@ -151,7 +152,7 @@ class OpenAIProvider(BaseEmbeddingProvider):
             "text-embedding-ada-002": 1536,
         }.get(model, 1536)
 
-    async def generate_embedding(self, text: str) -> np.ndarray:
+    async def generate_embedding(self, text: str) -> List[float]:
         """Generate embedding using OpenAI"""
         try:
             from litellm import aembedding
@@ -163,13 +164,13 @@ class OpenAIProvider(BaseEmbeddingProvider):
             )
 
             embedding = response["data"][0]["embedding"]
-            return np.array(embedding, dtype=np.float32)
+            return embedding  # Already a list of floats
 
         except Exception as e:
             logger.error(f"OpenAI embedding error: {e}")
             raise
 
-    async def generate_batch(self, texts: List[str]) -> List[np.ndarray]:
+    async def generate_batch(self, texts: List[str]) -> List[List[float]]:
         """Batch generation for OpenAI"""
         try:
             from litellm import aembedding
@@ -182,7 +183,7 @@ class OpenAIProvider(BaseEmbeddingProvider):
             )
 
             embeddings = [
-                np.array(item["embedding"], dtype=np.float32)
+                item["embedding"]  # Already a list of floats
                 for item in response["data"]
             ]
             return embeddings
@@ -205,7 +206,7 @@ class CohereProvider(BaseEmbeddingProvider):
         super().__init__(api_key, model)
         self._dimensions = 1024  # Cohere default
 
-    async def generate_embedding(self, text: str) -> np.ndarray:
+    async def generate_embedding(self, text: str) -> List[float]:
         """Generate embedding using Cohere"""
         try:
             from litellm import aembedding
@@ -218,7 +219,7 @@ class CohereProvider(BaseEmbeddingProvider):
             )
 
             embedding = response["data"][0]["embedding"]
-            return np.array(embedding, dtype=np.float32)
+            return embedding  # Already a list of floats
 
         except Exception as e:
             logger.error(f"Cohere embedding error: {e}")
@@ -239,17 +240,20 @@ class MockProvider(BaseEmbeddingProvider):
         self._dimensions = dimensions
         self._fail = fail
 
-    async def generate_embedding(self, text: str) -> np.ndarray:
+    async def generate_embedding(self, text: str) -> List[float]:
         """Generate mock embedding"""
         if self._fail:
             raise Exception("Mock provider configured to fail")
 
         # Generate deterministic embedding based on text
-        np.random.seed(hash(text) % (2**32))
-        embedding = np.random.rand(self._dimensions).astype(np.float32)
-
+        import random
+        random.seed(hash(text) % (2**32))
+        
+        # Generate random values
+        embedding = [random.random() for _ in range(self._dimensions)]
+        
         # Normalize to unit length
-        embedding = embedding / np.linalg.norm(embedding)
+        embedding = VectorOps.normalize(embedding)
 
         return embedding
 
@@ -272,12 +276,12 @@ class EmbeddingCache:
         content = f"{model}:{text}"
         return hashlib.sha256(content.encode()).hexdigest()
 
-    def get(self, text: str, model: str) -> Optional[np.ndarray]:
+    def get(self, text: str, model: str) -> Optional[List[float]]:
         """Get embedding from cache"""
         key = self._get_key(text, model)
         return self._cache.get(key)
 
-    def set(self, text: str, model: str, embedding: np.ndarray):
+    def set(self, text: str, model: str, embedding: List[float]):
         """Store embedding in cache"""
         # Simple LRU: remove oldest if at capacity
         if len(self._cache) >= self.max_size:
@@ -308,7 +312,7 @@ class EmbeddingService:
         self.cache = EmbeddingCache(cache_size) if cache_enabled else None
         self.last_provider = None
 
-    async def generate_embedding(self, text: str) -> np.ndarray:
+    async def generate_embedding(self, text: str) -> List[float]:
         """Generate embedding with fallback support"""
         # Check cache first
         if self.cache:
@@ -343,7 +347,7 @@ class EmbeddingService:
         )
         raise Exception(error_msg)
 
-    async def generate_batch(self, texts: List[str]) -> List[np.ndarray]:
+    async def generate_batch(self, texts: List[str]) -> List[List[float]]:
         """Generate embeddings for multiple texts"""
         # Separate cached and uncached
         cached_embeddings = {}

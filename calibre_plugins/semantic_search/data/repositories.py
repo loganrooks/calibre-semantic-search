@@ -8,7 +8,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import numpy as np
+# Use pure Python vector operations instead of numpy
+from calibre_plugins.semantic_search.core.vector_ops import VectorOps
 
 from calibre_plugins.semantic_search.core.text_processor import Chunk
 from calibre_plugins.semantic_search.data.database import SemanticSearchDB
@@ -21,19 +22,19 @@ class IEmbeddingRepository(ABC):
 
     @abstractmethod
     async def store_embedding(
-        self, book_id: int, chunk: Chunk, embedding: np.ndarray
+        self, book_id: int, chunk: Chunk, embedding: List[float]
     ) -> int:
         """Store embedding for a chunk"""
         pass
 
     @abstractmethod
-    async def get_embeddings(self, book_id: int) -> List[Tuple[Chunk, np.ndarray]]:
+    async def get_embeddings(self, book_id: int) -> List[Tuple[Chunk, List[float]]]:
         """Get all embeddings for a book"""
         pass
 
     @abstractmethod
     async def search_similar(
-        self, embedding: np.ndarray, limit: int, filters: Dict[str, Any]
+        self, embedding: List[float], limit: int, filters: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """Search for similar embeddings"""
         pass
@@ -81,7 +82,7 @@ class EmbeddingRepository(IEmbeddingRepository):
         self.db = SemanticSearchDB(db_path)
 
     async def store_embedding(
-        self, book_id: int, chunk: Chunk, embedding: np.ndarray
+        self, book_id: int, chunk: Chunk, embedding: List[float]
     ) -> int:
         """Store embedding for a chunk"""
         # Add book metadata to chunk if not present
@@ -93,7 +94,7 @@ class EmbeddingRepository(IEmbeddingRepository):
 
         return chunk_id
 
-    async def get_embeddings(self, book_id: int) -> List[Tuple[Chunk, np.ndarray]]:
+    async def get_embeddings(self, book_id: int) -> List[Tuple[Chunk, List[float]]]:
         """Get all embeddings for a book"""
         query = """
             SELECT 
@@ -132,7 +133,7 @@ class EmbeddingRepository(IEmbeddingRepository):
 
     async def search_similar(
         self,
-        embedding: np.ndarray,
+        embedding: List[float],
         limit: int = 20,
         filters: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:

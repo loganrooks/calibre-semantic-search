@@ -6,12 +6,14 @@ import json
 import logging
 import os
 import sqlite3
+import struct
 import threading
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import numpy as np
+# Use pure Python vector operations instead of numpy
+from calibre_plugins.semantic_search.core.vector_ops import VectorOps
 
 logger = logging.getLogger(__name__)
 
@@ -249,7 +251,7 @@ class SemanticSearchDB:
         conn.execute("UPDATE schema_version SET version = ?", (self.SCHEMA_VERSION,))
 
     def store_embedding(
-        self, book_id: int, chunk: "Chunk", embedding: np.ndarray
+        self, book_id: int, chunk: "Chunk", embedding: List[float]
     ) -> int:
         """
         Store a chunk and its embedding
@@ -304,7 +306,7 @@ class SemanticSearchDB:
                     INSERT OR REPLACE INTO vec_embeddings (chunk_id, embedding)
                     VALUES (?, ?)
                 """,
-                    (chunk_id, embedding.astype(np.float32).tobytes()),
+                    (chunk_id, VectorOps.pack_embedding(embedding)),
                 )
 
             except sqlite3.OperationalError:
@@ -314,7 +316,7 @@ class SemanticSearchDB:
                     INSERT OR REPLACE INTO embeddings (chunk_id, embedding)
                     VALUES (?, ?)
                 """,
-                    (chunk_id, embedding.astype(np.float32).tobytes()),
+                    (chunk_id, VectorOps.pack_embedding(embedding)),
                 )
 
             # Update book chunk count
@@ -330,7 +332,7 @@ class SemanticSearchDB:
 
             return chunk_id
 
-    def get_embedding(self, chunk_id: int) -> Optional[np.ndarray]:
+    def get_embedding(self, chunk_id: int) -> Optional[List[float]]:
         """Get embedding for a chunk"""
         try:
             # Try vec0 table first
@@ -351,14 +353,16 @@ class SemanticSearchDB:
             ).fetchone()
 
         if result:
-            # Convert blob back to numpy array
-            return np.frombuffer(result[0], dtype=np.float32)
+            # Convert blob back to list of floats
+            # Assuming 4 bytes per float (float32)
+            dimension = len(result[0]) // 4
+            return VectorOps.unpack_embedding(result[0], dimension)
 
         return None
 
     def search_similar(
         self,
-        embedding: np.ndarray,
+        embedding: List[float],
         limit: int = 20,
         filters: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
@@ -420,7 +424,7 @@ class SemanticSearchDB:
             """
 
             results = self._conn.execute(
-                query, [embedding.astype(np.float32).tobytes()] + params + [limit]
+                query, [VectorOps.pack_embedding(embedding)] + params + [limit]
             ).fetchall()
 
         except sqlite3.OperationalError:
@@ -458,7 +462,7 @@ class SemanticSearchDB:
         return output
 
     def _search_similar_fallback(
-        self, embedding: np.ndarray, limit: int, filters: Dict[str, Any]
+        self, embedding: List[float], limit: int, filters: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """Fallback similarity search without vec0"""
         # This is much slower but works without the extension
@@ -495,14 +499,15 @@ class SemanticSearchDB:
 
         # Calculate similarities
         results = []
-        query_norm = embedding / np.linalg.norm(embedding)
+        query_norm = VectorOps.normalize(embedding)
 
         for row in rows:
-            stored_embedding = np.frombuffer(row["embedding"], dtype=np.float32)
-            stored_norm = stored_embedding / np.linalg.norm(stored_embedding)
-
+            # Unpack stored embedding
+            dimension = len(row["embedding"]) // 4  # 4 bytes per float32
+            stored_embedding = VectorOps.unpack_embedding(row["embedding"], dimension)
+            
             # Cosine similarity
-            similarity = np.dot(query_norm, stored_norm)
+            similarity = VectorOps.cosine_similarity(query_norm, stored_embedding)
 
             results.append(
                 {

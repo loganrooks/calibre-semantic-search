@@ -482,6 +482,118 @@ If TDD process fails:
 4. Never delete existing content unless explicitly requested
 5. Always preserve the existing structure and formatting
 
+### 📚 Calibre Plugin Knowledge Base
+
+**IMPORTANT**: We maintain a comprehensive knowledge base for Calibre-specific issues and solutions.
+
+**Locations**: 
+- **Our Knowledge Base**: `.local-analysis/knowledge-base/` (our discoveries and solutions)
+- **Calibre Analysis Reports**: `semantic_docs/calibre_repo/` (comprehensive Calibre codebase analysis)
+
+#### Calibre Analysis Reports Available
+
+We have 8 comprehensive reports from deep Calibre codebase analysis:
+
+1. **embedded_python_environment.md** - Python packages available, NumPy alternatives
+2. **plugin_system_architecture.md** - How plugins are loaded and executed
+3. **dependency_management.md** - Handling dependencies, pure Python implementations
+4. **qt_ui_integration.md** - Qt/UI development patterns and pitfalls
+5. **error_patterns.md** - Common errors and debugging strategies
+6. **testing_development_workflow.md** - Testing reality and workflows
+7. **code_patterns_library.md** - Battle-tested code patterns
+8. **troubleshooting_guide.md** - Systematic problem solutions
+
+**Critical Findings**:
+- ❌ NumPy is NOT available (use VectorOps from Report 3)
+- ✅ Always use `from qt.core import ...`
+- ✅ Only pure Python dependencies allowed
+- ✅ Use print debugging (official method)
+
+#### When to Use the Knowledge Base
+
+**ALWAYS CHECK FIRST** before debugging Calibre-specific issues:
+- Module import errors
+- Qt/PyQt compatibility issues  
+- Plugin loading problems
+- Dependency/environment errors
+- Any repeated issues
+
+#### When to Add Entries
+
+**IMMEDIATELY DOCUMENT** after:
+- Solving any Calibre plugin issue
+- Discovering Calibre internals/behavior
+- Finding successful integration patterns
+- Encountering dependency limitations
+- Learning from calibre-src analysis
+
+#### How to Write Entries
+
+1. **Create markdown file** in appropriate subdirectory:
+   ```
+   .local-analysis/knowledge-base/
+   ├── calibre-internals/     # How Calibre works
+   ├── errors-solutions/      # Specific errors & fixes
+   ├── integration-patterns/  # Working patterns
+   └── dependencies/         # Dependency management
+   ```
+
+2. **Use standard format**:
+   ```markdown
+   # [Descriptive Title]
+   
+   **Date:** YYYY-MM-DD
+   **Category:** Error/Pattern/Internal/Dependency
+   **Tags:** [calibre, qt, import, etc.]
+   
+   ## Problem
+   [Clear description of the issue]
+   
+   ## Root Cause  
+   [Why this happens in Calibre]
+   
+   ## Solution
+   [Step-by-step fix]
+   
+   ## Prevention
+   [How to avoid this issue]
+   
+   ## Code Example
+   ```python
+   # Working code
+   ```
+   
+   ## References
+   - Calibre source: src/calibre/...
+   - Related issues: [links]
+   ```
+
+3. **Update the INDEX.md** after adding entries
+4. **Cross-reference** related issues
+
+#### How to Search
+
+Before starting any debugging:
+```bash
+# Quick search for keywords
+grep -r "numpy" .local-analysis/knowledge-base/
+
+# Check index first
+cat .local-analysis/knowledge-base/INDEX.md
+
+# Read specific category
+ls .local-analysis/knowledge-base/errors-solutions/
+```
+
+#### Integration with Development
+
+1. **Before writing code**: Check if issue is documented
+2. **During debugging**: Document new findings immediately  
+3. **After fixing issues**: Update knowledge base
+4. **In code reviews**: Verify solutions match documented patterns
+
+**Remember**: Every Calibre-specific issue we solve should be documented to prevent repeated debugging!
+
 ### Feedback and Issue Logging
 
 To provide feedback or report issues with Claude Code assistance:

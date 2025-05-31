@@ -7,7 +7,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-import numpy as np
+# Use pure Python vector operations instead of numpy
+from calibre_plugins.semantic_search.core.vector_ops import VectorOps
 
 logger = logging.getLogger(__name__)
 

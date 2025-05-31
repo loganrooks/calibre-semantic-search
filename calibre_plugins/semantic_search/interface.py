@@ -4,7 +4,14 @@ Main UI interface for Semantic Search plugin
 
 from calibre.gui2 import error_dialog, info_dialog
 from calibre.gui2.actions import InterfaceAction
-from PyQt5.Qt import QAction, QIcon, QMenu, Qt
+
+# Import from qt.core instead of PyQt5 for Calibre compatibility
+try:
+    from qt.core import QAction, QIcon, QMenu, QToolButton
+except ImportError:
+    # Fallback for older Calibre versions
+    from PyQt5.Qt import QAction, QIcon, QMenu, Qt as QtCompat
+    QToolButton = QtCompat.QToolButton
 
 from calibre_plugins.semantic_search.config import SemanticSearchConfig
 
@@ -17,24 +24,29 @@ class SemanticSearchInterface(InterfaceAction):
     name = "Semantic Search"
     action_spec = (
         "Semantic Search",
-        None,
+        "search.png",  # Use Calibre's built-in search icon
         "Search for books and passages by meaning",
         None,
     )
-    popup_type = Qt.ToolButtonTextBesideIcon
+    popup_type = QToolButton.ToolButtonPopupMode.MenuButtonPopup
     action_add_menu = True
+    allowed_in_toolbar = True
+    allowed_in_menu = True
 
     def genesis(self):
         """
         This method is called once per plugin, do initial setup here
         """
         # Set the icon for this interface action
+        # The icon should be loaded from action_spec automatically
+        # but we can also try to load a custom icon
         try:
-            from calibre.gui2 import get_icons
-            icon = get_icons("search.png")
-            self.qaction.setIcon(icon)
+            # Try to use Calibre's built-in search icon
+            icon = QIcon.ic('search.png')
+            if icon and not icon.isNull():
+                self.qaction.setIcon(icon)
         except:
-            # Fallback if icon loading fails
+            # Icon will use default from action_spec
             pass
 
         # The qaction is automatically created from the action_spec

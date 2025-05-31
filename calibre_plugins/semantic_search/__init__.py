@@ -23,7 +23,7 @@ class SemanticSearchPlugin(InterfaceActionBase):
     minimum_calibre_version = (5, 0, 0)
 
     # This points to our actual implementation
-    actual_plugin = "calibre_plugins.semantic_search.ui:SemanticSearchInterface"
+    actual_plugin = "calibre_plugins.semantic_search.interface:SemanticSearchInterface"
 
     def is_customizable(self):
         """Allow user configuration"""

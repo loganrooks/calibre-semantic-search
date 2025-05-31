@@ -52,9 +52,13 @@ def create_plugin_zip(build_dir, output_file):
                 # Make the path relative to the semantic_search directory
                 arcname = file_path.relative_to(plugin_dir)
                 
+                # Skip plugin-import-name file here as we'll add it at root
+                if 'plugin-import-name' in str(file):
+                    continue
+                    
                 zf.write(file_path, arcname)
         
-        # Add the plugin-import-name file at the root
+        # Add the plugin-import-name file at the root (only once)
         import_name_file = build_dir / 'plugin-import-name-semantic_search.txt'
         if import_name_file.exists():
             zf.write(import_name_file, 'plugin-import-name-semantic_search.txt')

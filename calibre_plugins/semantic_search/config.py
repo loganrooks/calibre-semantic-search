@@ -83,7 +83,11 @@ class SemanticSearchConfig:
         """Set config value with dot notation support"""
         if "." in key:
             parts = key.split(".")
-            config_dict = self._config.as_dict()
+            # Get existing config as dict-like structure
+            config_dict = {}
+            for k in self._config:
+                config_dict[k] = self._config[k]
+            
             current = config_dict
 
             # Navigate to the parent of the target key

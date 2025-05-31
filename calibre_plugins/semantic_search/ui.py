@@ -29,8 +29,13 @@ class SemanticSearchInterface(InterfaceAction):
         This method is called once per plugin, do initial setup here
         """
         # Set the icon for this interface action
-        icon = get_icons("search.png")
-        self.qaction.setIcon(icon)
+        try:
+            from calibre.gui2 import get_icons
+            icon = get_icons("search.png")
+            self.qaction.setIcon(icon)
+        except:
+            # Fallback if icon loading fails
+            pass
 
         # The qaction is automatically created from the action_spec
         self.qaction.triggered.connect(self.show_dialog)
@@ -185,8 +190,9 @@ class SemanticSearchInterface(InterfaceAction):
         """
         Called after all plugins have been initialized
         """
-        # Set up viewer integration
-        self.gui.viewer_opened.connect(self.viewer_opened)
+        # Set up viewer integration if signal exists
+        if hasattr(self.gui, 'viewer_opened'):
+            self.gui.viewer_opened.connect(self.viewer_opened)
 
     def viewer_opened(self, viewer):
         """

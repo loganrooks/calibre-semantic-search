@@ -440,31 +440,110 @@ class SemanticSearchDialog(QDialog):
         return options
 
     def _initialize_search_engine(self):
-        """Initialize search engine (placeholder)"""
-        # This will be implemented when we create the database layer
-        self.status_bar.setText("Search engine not yet implemented")
+        """Initialize search engine with dependencies"""
+        try:
+            import os
+            import asyncio
+            import threading
+            from calibre_plugins.semantic_search.core.search_engine import SearchEngine
+            from calibre_plugins.semantic_search.core.embedding_service import create_embedding_service
+            from calibre_plugins.semantic_search.data.repositories import (
+                EmbeddingRepository, CalibreRepository
+            )
+            
+            # Get library path
+            library_path = self.gui.library_path
+            db_dir = os.path.join(library_path, 'semantic_search')
+            os.makedirs(db_dir, exist_ok=True)
+            db_path = os.path.join(db_dir, 'embeddings.db')
+            
+            # Create repositories
+            embedding_repo = EmbeddingRepository(db_path)
+            calibre_repo = CalibreRepository(self.gui.current_db.new_api)
+            
+            # Create embedding service with current config
+            config_dict = self.config.as_dict()
+            embedding_service = create_embedding_service(config_dict)
+            
+            # Create search engine
+            self.search_engine = SearchEngine(embedding_repo, embedding_service)
+            
+            # Create event loop for async operations
+            self.loop = asyncio.new_event_loop()
+            self.loop_thread = threading.Thread(target=self.loop.run_forever)
+            self.loop_thread.daemon = True
+            self.loop_thread.start()
+            
+            self.status_bar.setText("Search engine initialized successfully")
+            
+        except Exception as e:
+            self.status_bar.setText(f"Search engine initialization failed: {str(e)}")
+            # Log the error for debugging
+            import traceback
+            print(f"Search engine init error: {traceback.format_exc()}")
 
     def _view_in_book(self, book_id: int):
         """View result in book viewer"""
-        # This will integrate with Calibre's viewer
-        info_dialog(
-            self.gui,
-            "View in Book",
-            f"Opening book {book_id} in viewer...\n\n"
-            "This feature will be implemented with viewer integration.",
-            show=True,
-        )
+        try:
+            # Get the View action from Calibre's interface
+            view_action = self.gui.iactions.get('View')
+            if view_action:
+                # Open the book in viewer
+                view_action.view_book(book_id)
+                self.status_bar.setText(f"Opened book {book_id} in viewer")
+            else:
+                info_dialog(
+                    self.gui,
+                    "View in Book",
+                    f"Could not find viewer action. Book ID: {book_id}",
+                    show=True,
+                )
+        except Exception as e:
+            info_dialog(
+                self.gui,
+                "View in Book Error",
+                f"Failed to open book {book_id}: {str(e)}",
+                show=True,
+            )
 
     def _find_similar(self, chunk_id: int):
         """Find similar passages"""
-        # This will search for similar chunks
-        info_dialog(
-            self.gui,
-            "Find Similar",
-            f"Finding passages similar to chunk {chunk_id}...\n\n"
-            "This feature will be implemented soon.",
-            show=True,
-        )
+        try:
+            if not self.search_engine:
+                self._initialize_search_engine()
+                
+            # Find the current result by chunk_id
+            current_result = None
+            for result in self.current_results:
+                if hasattr(result, 'chunk_id') and result.chunk_id == chunk_id:
+                    current_result = result
+                    break
+                    
+            if current_result:
+                # Use the chunk text as the search query
+                query = current_result.chunk_text[:200]  # First 200 chars
+                self.query_input.setPlainText(query)
+                
+                # Set search mode to semantic similarity
+                self.mode_combo.setCurrentIndex(0)  # Semantic mode
+                
+                # Perform search
+                self.perform_search()
+                self.status_bar.setText("Searching for similar passages...")
+            else:
+                info_dialog(
+                    self.gui,
+                    "Find Similar",
+                    f"Could not find chunk {chunk_id} in current results.",
+                    show=True,
+                )
+        except Exception as e:
+            info_dialog(
+                self.gui,
+                "Find Similar Error",
+                f"Failed to find similar passages: {str(e)}",
+                show=True,
+            )
 
     def clear_search(self):
         """Clear search query and results"""

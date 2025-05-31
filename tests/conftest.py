@@ -2,12 +2,15 @@
 Pytest configuration and fixtures
 """
 
+# CRITICAL: Import calibre mocks BEFORE any other imports
+# This prevents ModuleNotFoundError for calibre modules
+import tests.calibre_mocks
+
 import pytest
 import sys
 import tempfile
 from pathlib import Path
 from unittest.mock import Mock, MagicMock
-import numpy as np
 
 # Add the plugin directory to sys.path for testing
 plugin_dir = Path(__file__).parent.parent
@@ -95,15 +98,19 @@ def sample_text():
 @pytest.fixture
 def sample_embeddings():
     """Sample embeddings for testing"""
-    import numpy as np
+    import random
     
     # Create deterministic embeddings for testing
-    np.random.seed(42)
+    random.seed(42)
+    
+    def create_embedding(size=768):
+        return [random.random() for _ in range(size)]
+    
     embeddings = {
-        'being': np.random.rand(768).astype(np.float32),
-        'time': np.random.rand(768).astype(np.float32),
-        'dasein': np.random.rand(768).astype(np.float32),
-        'existence': np.random.rand(768).astype(np.float32),
+        'being': create_embedding(),
+        'time': create_embedding(),
+        'dasein': create_embedding(),
+        'existence': create_embedding(),
     }
     
     return embeddings
@@ -112,11 +119,14 @@ def sample_embeddings():
 @pytest.fixture
 def mock_embedding_provider():
     """Mock embedding provider for testing"""
+    import random
+    random.seed(42)
+    
     provider = Mock()
     provider.get_dimensions.return_value = 768
-    provider.generate_embedding.return_value = np.random.rand(768).astype(np.float32)
+    provider.generate_embedding.return_value = [random.random() for _ in range(768)]
     provider.generate_batch.return_value = [
-        np.random.rand(768).astype(np.float32) for _ in range(10)
+        [random.random() for _ in range(768)] for _ in range(10)
     ]
     return provider
 

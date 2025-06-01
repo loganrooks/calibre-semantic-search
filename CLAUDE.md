@@ -1,5 +1,207 @@
 # Calibre Semantic Search Plugin - Development Guide
 
+## 📚 DOCUMENTATION MANAGEMENT SYSTEM
+
+### **CRITICAL**: Documentation Lifecycle Management
+
+This project uses a structured documentation management system to prevent documentation chaos, maintain clarity, and reduce maintenance burden.
+
+#### **Core Principles**
+1. **Single Source of Truth**: One authoritative document per topic
+2. **Lifecycle Management**: Documents have creation → active → archive lifecycle
+3. **Maintenance Schedule**: Clear responsibilities for keeping docs current
+4. **Automatic Cleanup**: Regular review and archival of outdated content
+
+#### **Documentation Categories & Rules**
+
+##### **TIER 1: Essential (Root Directory Only)**
+```
+PROJECT_STATUS.md    - Single source of truth for project status
+CLAUDE.md           - This file: AI context, rules, development guide  
+CHANGELOG.md        - Version history (never delete)
+README.md           - Public project overview
+```
+**Rules**: Must stay in root. Update after each work session. Never exceed 4 files.
+
+##### **TIER 2: Reference (/docs/ Directory)**
+```
+docs/
+├── analysis/       - Point-in-time analysis reports
+├── development/    - Development plans and processes
+├── lessons/        - Lessons learned, troubleshooting guides
+├── planning/       - Future enhancement plans
+└── terminology/    - User documentation and style guides
+```
+**Rules**: Organized by type. Updated as-needed. Archive when superseded.
+
+##### **TIER 3: Archive (/archive/ Directory)**  
+```
+archive/
+├── yyyy-mm-dd-topic/     - Date-stamped archives
+├── failed-attempts/      - Implementation attempts that failed
+├── analysis-snapshots/   - Historical analysis reports
+└── development-artifacts/ - Temporary development documents
+```
+**Rules**: Move here when content is historical but potentially valuable. Never delete.
+
+#### **Mandatory Documentation Workflow**
+
+##### **BEFORE Creating Any New Document**
+1. **Check if topic exists**: Search existing docs first
+2. **Determine lifecycle**: Will this be temporary, reference, or evolving?
+3. **Choose correct tier**: Essential → root, Reference → docs/, Historical → archive/
+4. **Name systematically**: Use `YYYY-MM-DD-topic.md` for time-bound content
+
+##### **AFTER Each Work Session**
+1. **Update PROJECT_STATUS.md**: Status, completion %, recent changes
+2. **Update CLAUDE.md**: Add any new lessons, update context if needed
+3. **Review new documents**: Move to appropriate tier if needed
+4. **Archive completed work**: Move implementation plans to archive/ when done
+
+##### **WEEKLY Documentation Cleanup (Friday)**
+```bash
+# 1. Review root directory
+ls -la *.md | wc -l  # Should be ≤ 4 files
+
+# 2. Archive completed documents
+find . -name "*.md" -path "./docs/development/*" -mtime +30
+
+# 3. Update document index
+docs/INDEX.md  # List of all active documents
+
+# 4. Check for duplicates
+grep -r "similar topic" docs/ archive/
+```
+
+##### **MONTHLY Documentation Audit**
+1. **Relevance review**: Mark outdated content for archival
+2. **Consolidation**: Merge overlapping documents  
+3. **Link verification**: Ensure cross-references are valid
+4. **Maintenance burden**: Identify docs requiring too much upkeep
+
+#### **Document Types & Maintenance Schedule**
+
+##### **Status Tracking (Update Every Session)**
+- `PROJECT_STATUS.md` - Current status, blockers, completion
+- `CLAUDE.md` - Session context, recent lessons learned
+
+##### **Version Control (Update Per Release)**
+- `CHANGELOG.md` - Version history and notable changes
+- `README.md` - Feature descriptions and getting started
+
+##### **Reference Documentation (Update As-Needed)**
+- Lessons learned, troubleshooting guides
+- API documentation, configuration guides
+- User-facing terminology and style guides
+
+##### **Analysis & Planning (Create → Use → Archive)**
+- Point-in-time analysis reports (archive after 30 days)
+- Implementation plans (archive when completed/abandoned)
+- Research documents (archive when superseded)
+
+#### **Violation Prevention & Enforcement**
+
+##### **RED FLAGS (Stop and Fix Immediately)**
+- More than 4 markdown files in root directory
+- Multiple documents covering same topic  
+- Documents not updated in 60+ days in docs/
+- Analysis reports from >30 days ago in active areas
+- Implementation plans for completed/abandoned work
+
+##### **ENFORCEMENT COMMANDS**
+```bash
+# Check root directory count
+find . -maxdepth 1 -name "*.md" | wc -l  # Must be ≤ 4
+
+# Find stale documents  
+find docs/ -name "*.md" -mtime +60
+
+# Check for topic overlap
+docs/check_duplicates.py  # Custom script to detect overlap
+
+# Validate document structure
+docs/validate_structure.py  # Ensure proper categorization
+```
+
+##### **AUTOMATIC CLEANUP RULES**
+1. **30-day rule**: Analysis reports auto-archive after 30 days
+2. **Completion rule**: Implementation docs archive when status = completed
+3. **Supersession rule**: When new doc covers same topic, archive old
+4. **Root limit**: Never allow >5 markdown files in root
+
+#### **Documentation Health Metrics**
+
+Track these metrics in PROJECT_STATUS.md:
+- **Root file count**: Target ≤ 4, Alert at 5, Crisis at 6+
+- **Stale document count**: Documents not updated in 60+ days
+- **Archive ratio**: % of created docs properly archived
+- **Maintenance burden**: Hours/week spent on doc maintenance
+
+#### **Integration with Development Process**
+
+##### **Before Starting Work**
+```bash
+# 1. Check current status
+cat PROJECT_STATUS.md | head -20
+
+# 2. Review relevant reference docs
+find docs/ -name "*$TOPIC*" -type f
+
+# 3. Check for related lessons learned
+grep -r "$TECHNOLOGY" docs/lessons/
+```
+
+##### **During Development**  
+- Document decisions in real-time
+- Update status as work progresses
+- Note lessons learned immediately
+
+##### **After Completing Work**
+- Update PROJECT_STATUS.md with results
+- Archive any temporary planning documents
+- Create lessons learned if significant issues encountered
+
+#### **Tool Integration**
+
+##### **Git Hooks**
+```bash
+# pre-commit: Check doc count and staleness
+scripts/check_doc_health.sh
+
+# post-commit: Update last-modified dates
+scripts/update_doc_metadata.sh
+```
+
+##### **Development Scripts**
+```bash
+scripts/
+├── archive_old_docs.py     - Move stale docs to archive
+├── check_doc_duplicates.py - Find overlapping content
+├── generate_doc_index.py   - Create docs/INDEX.md
+└── validate_doc_structure.py - Ensure proper categorization
+```
+
+#### **Crisis Recovery Process**
+
+If documentation becomes chaotic again:
+
+##### **Emergency Cleanup (1-2 hours)**
+1. **Identify essential**: Move only critical docs to temp folder
+2. **Archive everything else**: `mv *.md archive/emergency-$(date +%Y%m%d)/`
+3. **Restore essentials**: Move back only PROJECT_STATUS.md, CLAUDE.md, README.md, CHANGELOG.md
+4. **Triage archive**: Sort emergency archive into proper categories
+
+##### **Recovery Process (Next 2-3 sessions)**
+1. Review archived content systematically
+2. Extract still-relevant information
+3. Consolidate into proper structure
+4. Update all cross-references
+5. Establish stricter enforcement
+
+**REMEMBER**: Documentation is a tool to help development, not a burden. If the system isn't helping, fix the system, don't abandon documentation.
+
+---
+
 ## Project Overview
 This is a Calibre plugin that adds AI-powered semantic search capabilities specifically optimized for philosophical and academic texts. It uses vector embeddings to enable conceptual similarity search beyond traditional keyword matching.
 

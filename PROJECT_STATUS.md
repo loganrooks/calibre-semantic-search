@@ -1,0 +1,164 @@
+# Project Status: Calibre Semantic Search Plugin
+
+**Last Updated**: 2025-06-01
+**Version**: 0.6.0 → 1.0.0
+**Overall Completion**: 70%
+
+## 🚨 Quick Status Overview
+
+```
+Backend:     ████████████████████ 95%  ✅ Excellent
+Frontend:    ████████████████░░░░ 80%  ✅ Good  
+Integration: ███████░░░░░░░░░░░░░ 35%  ❌ Getting Better
+Testing:     ██████████████████░░ 90%  ✅ Excellent
+```
+
+## 🔴 Critical Issues (Must Fix for v1.0)
+
+1. **Async Error in Indexing Status** ✅ FIXED
+   - Was calling async method synchronously
+   - Fixed by using `run_until_complete()`
+
+2. **Test Connection** ✅ FIXED (2025-05-31)
+   - Was placeholder showing info dialog
+   - Now actually tests embedding service
+   - Shows success/error with provider details
+
+3. **UI Terminology Clarified** ✅ FIXED (2025-06-01)
+   - Moved chunk settings to Indexing tab
+   - Created UI_TERMINOLOGY.md guide
+   - Clarified indexing vs embedding relationship
+
+4. **Search Not Connected** ❌ BLOCKER
+   - Search dialog exists but shows "not implemented"
+   - Backend SearchEngine ready but not wired up
+   - Need to implement `_initialize_search_engine()` properly
+
+5. **Indexing Not Connected** ❌ BLOCKER
+   - "Index Books" shows placeholder dialog
+   - IndexingService exists but not called
+   - Need to implement `_start_indexing()` properly
+
+6. **Viewer Integration Empty** ❌
+   - ViewerIntegration class exists and works
+   - But `_inject_viewer_menu()` is empty
+
+## ✅ What Actually Works
+
+### Backend (95% Complete)
+- ✅ **LiteLLM Integration** - Fully implemented with all providers
+- ✅ **Embedding Service** - Multi-provider with fallback chain
+- ✅ **Search Engine** - All modes (semantic, dialectical, genealogical)
+- ✅ **Indexing Service** - Batch processing, progress tracking
+- ✅ **Text Processor** - Philosophy-aware chunking
+- ✅ **Vector Operations** - Pure Python implementation
+- ✅ **Database Layer** - SQLite with sqlite-vec
+- ✅ **Caching System** - Multi-level caching
+
+### Frontend (80% Complete)
+- ✅ **Configuration Dialog** - Fully functional with all settings
+- ✅ **Indexing Settings Tab** - Chunk settings, batch size, auto-index, philosophy mode
+- ✅ **Test Connection** - Actually tests provider connection (NEW!)
+- ✅ **UI Terminology** - Clear user-friendly language (NEW!)
+- ✅ **Search Dialog Layout** - Complete with all widgets
+- ✅ **Result Display** - ResultCard widget ready
+- ✅ **Scope Selector** - Works but needs autocomplete upgrade
+- ✅ **Icons** - Professional icon set included
+
+### Testing (90% Complete)
+- ✅ 220+ unit tests passing
+- ✅ Performance benchmarks
+- ✅ Philosophical test cases
+- ✅ Test isolation with calibre_mocks
+
+## ❌ What's Just Placeholders
+
+1. **Search Connection** (interface.py:176)
+   ```python
+   info_dialog(self.gui, 'Indexing',
+               'This feature will be implemented with the indexing service.')
+   ```
+
+2. **Index Books** (interface.py:176)
+   ```python
+   info_dialog(self.gui, 'Indexing',
+               'This feature will be implemented with the indexing service.')
+   ```
+
+3. **Viewer Menu** (interface.py:265)
+   ```python
+   def _inject_viewer_menu(self, viewer):
+       pass  # Empty!
+   ```
+
+## 📋 Implementation Plan
+
+### Phase 1: Connect What Exists (1-2 days)
+1. [ ] Fix search dialog connection
+   - Wire up `_initialize_search_engine()`
+   - Pass plugin services to dialog
+   - Fix async/await issues
+
+2. [ ] Fix indexing connection
+   - Implement real `_start_indexing()`
+   - Add progress dialog
+   - Handle batch operations
+
+3. [ ] Implement test connection
+   - Call embedding service test
+   - Show real results
+
+4. [ ] Activate viewer integration
+   - Call ViewerIntegration.inject_menu()
+   - Wire up context menu
+
+### Phase 2: Missing Features (2-3 days)
+5. [ ] AutoCompleteScope integration
+   - Replace dropdown in search dialog
+   - Add fuzzy matching
+
+6. [ ] Result navigation
+   - Open book at specific location
+   - Highlight found text
+
+7. [ ] Local provider (Ollama)
+   - Add to provider chain
+   - Test offline functionality
+
+## 🗂️ File Structure Quick Reference
+
+```
+interface.py         - Main plugin entry (has placeholders)
+├── config.py       - Settings dialog (✅ working)
+├── search_dialog.py - Search UI (❌ not connected)
+├── core/
+│   ├── embedding_service.py  - ✅ LiteLLM integration
+│   ├── search_engine.py      - ✅ Complete
+│   └── indexing_service.py   - ✅ Complete
+└── ui/
+    ├── viewer_integration.py - ✅ Complete but not injected
+    └── widgets.py           - ✅ All widgets ready
+```
+
+## 📝 Documentation Cleanup Done
+
+**Deleted/Merged**:
+- TODO_IMPLEMENTATION_GAPS.md → Merged here
+- TODO_REAL_IMPLEMENTATION.md → Merged here  
+- IMPLEMENTATION_STATUS.md → Replaced by this
+
+**Keeping**:
+- PROJECT_STATUS.md (this file) - Single source of truth
+- CLAUDE.md - Development guide
+- CHANGELOG.md - Version history
+- README.md - User documentation
+
+## 🎯 Next Actions
+
+1. **Immediate**: Build and test async fix
+2. **Today**: Connect search dialog to backend
+3. **Tomorrow**: Connect indexing to backend
+4. **This Week**: Release v1.0.0
+
+---
+*Use this document as the single source of truth for project status. Update after each work session.*

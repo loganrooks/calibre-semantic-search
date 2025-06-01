@@ -27,7 +27,7 @@ from PyQt5.Qt import (
 
 # Default configuration values
 DEFAULTS = {
-    "embedding_provider": "vertex_ai",
+    "embedding_provider": "mock",
     "embedding_model": "text-embedding-preview-0815",
     "embedding_dimensions": 768,
     "chunk_size": 512,
@@ -105,6 +105,13 @@ class SemanticSearchConfig:
         else:
             self._config[key] = value
 
+    def as_dict(self) -> Dict[str, Any]:
+        """Get configuration as dictionary"""
+        result = {}
+        for key in self._config:
+            result[key] = self._config[key]
+        return result
+
     def save(self):
         """Save configuration to disk"""
         self._config.commit()
@@ -130,11 +137,15 @@ class ConfigWidget(QWidget):
 
         # API Configuration Tab
         api_tab = self._create_api_tab()
-        tabs.addTab(api_tab, "API Configuration")
+        tabs.addTab(api_tab, "AI Provider")
 
         # Search Options Tab
         search_tab = self._create_search_tab()
         tabs.addTab(search_tab, "Search Options")
+        
+        # Indexing Tab
+        indexing_tab = self._create_indexing_tab()
+        tabs.addTab(indexing_tab, "Indexing")
 
         # Performance Tab
         performance_tab = self._create_performance_tab()
@@ -149,14 +160,32 @@ class ConfigWidget(QWidget):
         widget = QWidget()
         layout = QVBoxLayout()
         widget.setLayout(layout)
+        
+        # Add explanation
+        explanation = QLabel(
+            "The AI provider generates 'embeddings' - numerical representations of text meaning.\n"
+            "This enables semantic search to find conceptually similar passages.\n"
+            "Embeddings are created during the indexing process."
+        )
+        explanation.setWordWrap(True)
+        explanation.setStyleSheet("QLabel { color: #666; margin-bottom: 10px; }")
+        layout.addWidget(explanation)
 
         # Provider selection
-        provider_group = QGroupBox("Embedding Provider")
+        provider_group = QGroupBox("AI Provider for Embeddings")
         provider_layout = QFormLayout()
         provider_group.setLayout(provider_layout)
 
         self.provider_combo = QComboBox()
-        self.provider_combo.addItems(["vertex_ai", "openai", "cohere", "local"])
+        self.provider_combo.addItems(["mock", "openai", "vertex_ai", "cohere", "local"])
+        self.provider_combo.setToolTip(
+            "Choose the AI service that will analyze your text during indexing.\n"
+            "Mock = Free testing mode (no real AI)\n"
+            "OpenAI = GPT embeddings (requires API key)\n"
+            "Vertex AI = Google Cloud (requires setup)\n"
+            "Cohere = Cohere AI (requires API key)\n"
+            "Local = Ollama (coming soon)"
+        )
         provider_layout.addRow("Provider:", self.provider_combo)
 
         # Model selection
@@ -214,25 +243,103 @@ class ConfigWidget(QWidget):
         search_layout.addRow("Default Scope:", self.scope_combo)
 
         layout.addWidget(search_group)
-
-        # Chunking settings
-        chunk_group = QGroupBox("Text Chunking")
-        chunk_layout = QFormLayout()
-        chunk_group.setLayout(chunk_layout)
-
-        self.chunk_size_spin = QSpinBox()
-        self.chunk_size_spin.setRange(128, 2048)
-        self.chunk_size_spin.setSingleStep(128)
-        chunk_layout.addRow("Chunk Size (tokens):", self.chunk_size_spin)
-
-        self.chunk_overlap_spin = QSpinBox()
-        self.chunk_overlap_spin.setRange(0, 256)
-        self.chunk_overlap_spin.setSingleStep(10)
-        chunk_layout.addRow("Chunk Overlap (tokens):", self.chunk_overlap_spin)
-
-        layout.addWidget(chunk_group)
         layout.addStretch()
 
+        return widget
+    
+    def _create_indexing_tab(self):
+        """Create indexing options tab"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        
+        # Add explanation
+        explanation = QLabel(
+            "Indexing prepares your books for semantic search by:\n"
+            "1. Extracting text from books\n"
+            "2. Splitting text into searchable chunks\n"
+            "3. Generating embeddings (via AI provider)\n"
+            "4. Storing everything in the search database"
+        )
+        explanation.setWordWrap(True)
+        explanation.setStyleSheet("QLabel { color: #666; margin-bottom: 10px; }")
+        layout.addWidget(explanation)
+        
+        # Batch Processing Settings
+        batch_group = QGroupBox("Batch Processing")
+        batch_layout = QFormLayout()
+        batch_group.setLayout(batch_layout)
+        
+        # Books per batch
+        self.batch_size_spin = QSpinBox()
+        self.batch_size_spin.setRange(1, 100)
+        self.batch_size_spin.setSingleStep(5)
+        batch_layout.addRow("Books per batch:", self.batch_size_spin)
+        
+        # Concurrent requests
+        self.max_concurrent_spin = QSpinBox()
+        self.max_concurrent_spin.setRange(1, 10)
+        batch_layout.addRow("Max concurrent requests:", self.max_concurrent_spin)
+        
+        layout.addWidget(batch_group)
+        
+        # Auto-indexing Settings
+        auto_group = QGroupBox("Automatic Indexing")
+        auto_layout = QFormLayout()
+        auto_group.setLayout(auto_layout)
+        
+        # Auto-index new books
+        self.auto_index_new = QCheckBox("Automatically index new books")
+        auto_layout.addRow("", self.auto_index_new)
+        
+        # Auto-index on library change
+        self.auto_index_library = QCheckBox("Re-index when switching libraries")
+        auto_layout.addRow("", self.auto_index_library)
+        
+        layout.addWidget(auto_group)
+        
+        # Text Processing Settings
+        process_group = QGroupBox("Text Processing")
+        process_layout = QFormLayout()
+        process_group.setLayout(process_layout)
+        
+        # Chunk size
+        self.chunk_size_spin = QSpinBox()
+        self.chunk_size_spin.setRange(100, 2000)
+        self.chunk_size_spin.setSingleStep(100)
+        self.chunk_size_spin.setToolTip(
+            "Size of text chunks for embedding generation.\n"
+            "Smaller chunks = more precise search results.\n"
+            "Larger chunks = more context preserved."
+        )
+        process_layout.addRow("Chunk Size (words):", self.chunk_size_spin)
+
+        # Chunk overlap
+        self.chunk_overlap_spin = QSpinBox()
+        self.chunk_overlap_spin.setRange(0, 500)
+        self.chunk_overlap_spin.setSingleStep(10)
+        self.chunk_overlap_spin.setToolTip(
+            "Overlap between consecutive chunks.\n"
+            "Helps preserve context across chunk boundaries."
+        )
+        process_layout.addRow("Chunk Overlap (words):", self.chunk_overlap_spin)
+        
+        # Philosophy mode
+        self.philosophy_mode = QCheckBox("Enable philosophy-aware processing")
+        self.philosophy_mode.setToolTip(
+            "Preserves arguments and philosophical structure during chunking"
+        )
+        process_layout.addRow("", self.philosophy_mode)
+        
+        # Skip front/back matter
+        self.skip_matter = QCheckBox("Skip front/back matter")
+        self.skip_matter.setToolTip(
+            "Skip table of contents, indexes, bibliographies"
+        )
+        process_layout.addRow("", self.skip_matter)
+        
+        layout.addWidget(process_group)
+        layout.addStretch()
+        
         return widget
 
     def _create_performance_tab(self):
@@ -257,21 +364,9 @@ class ConfigWidget(QWidget):
 
         layout.addWidget(cache_group)
 
-        # Batch processing
-        batch_group = QGroupBox("Batch Processing")
-        batch_layout = QFormLayout()
-        batch_group.setLayout(batch_layout)
-
-        self.batch_size_spin = QSpinBox()
-        self.batch_size_spin.setRange(10, 500)
-        self.batch_size_spin.setSingleStep(10)
-        batch_layout.addRow("Batch Size:", self.batch_size_spin)
-
-        self.concurrent_spin = QSpinBox()
-        self.concurrent_spin.setRange(1, 10)
-        batch_layout.addRow("Concurrent Requests:", self.concurrent_spin)
-
-        layout.addWidget(batch_group)
+        # Note: Batch processing settings have been moved to Indexing tab
+        # This tab now focuses on cache settings only
+        
         layout.addStretch()
 
         return widget
@@ -328,18 +423,12 @@ class ConfigWidget(QWidget):
             int(self.config.get("search_options.similarity_threshold") * 100)
         )
         self.scope_combo.setCurrentText(self.config.get("search_options.scope"))
-        self.chunk_size_spin.setValue(self.config.get("chunk_size"))
-        self.chunk_overlap_spin.setValue(self.config.get("chunk_overlap"))
 
         # Performance settings
         self.cache_enabled_check.setChecked(
             self.config.get("performance.cache_enabled")
         )
         self.cache_size_spin.setValue(self.config.get("performance.cache_size_mb"))
-        self.batch_size_spin.setValue(self.config.get("performance.batch_size"))
-        self.concurrent_spin.setValue(
-            self.config.get("performance.max_concurrent_requests")
-        )
 
         # UI settings
         self.floating_check.setChecked(self.config.get("ui_options.floating_window"))
@@ -348,6 +437,28 @@ class ConfigWidget(QWidget):
         )
         self.opacity_slider.setValue(
             int(self.config.get("ui_options.window_opacity") * 100)
+        )
+        
+        # Indexing settings
+        self.batch_size_spin.setValue(
+            self.config.get("indexing_options.batch_size", 10)
+        )
+        self.max_concurrent_spin.setValue(
+            self.config.get("indexing_options.max_concurrent_requests", 3)
+        )
+        self.auto_index_new.setChecked(
+            self.config.get("indexing_options.auto_index_new", False)
+        )
+        self.auto_index_library.setChecked(
+            self.config.get("indexing_options.auto_index_library", False)
+        )
+        self.chunk_size_spin.setValue(self.config.get("chunk_size", 512))
+        self.chunk_overlap_spin.setValue(self.config.get("chunk_overlap", 50))
+        self.philosophy_mode.setChecked(
+            self.config.get("indexing_options.philosophy_mode", True)
+        )
+        self.skip_matter.setChecked(
+            self.config.get("indexing_options.skip_matter", True)
         )
 
     def save_settings(self):
@@ -366,18 +477,12 @@ class ConfigWidget(QWidget):
             "search_options.similarity_threshold", self.threshold_slider.value() / 100
         )
         self.config.set("search_options.scope", self.scope_combo.currentText())
-        self.config.set("chunk_size", self.chunk_size_spin.value())
-        self.config.set("chunk_overlap", self.chunk_overlap_spin.value())
 
         # Performance settings
         self.config.set(
             "performance.cache_enabled", self.cache_enabled_check.isChecked()
         )
         self.config.set("performance.cache_size_mb", self.cache_size_spin.value())
-        self.config.set("performance.batch_size", self.batch_size_spin.value())
-        self.config.set(
-            "performance.max_concurrent_requests", self.concurrent_spin.value()
-        )
 
         # UI settings
         self.config.set("ui_options.floating_window", self.floating_check.isChecked())
@@ -385,17 +490,88 @@ class ConfigWidget(QWidget):
             "ui_options.remember_position", self.remember_pos_check.isChecked()
         )
         self.config.set("ui_options.window_opacity", self.opacity_slider.value() / 100)
+        
+        # Indexing settings
+        self.config.set("indexing_options.batch_size", self.batch_size_spin.value())
+        self.config.set("indexing_options.max_concurrent_requests", self.max_concurrent_spin.value())
+        self.config.set("indexing_options.auto_index_new", self.auto_index_new.isChecked())
+        self.config.set("indexing_options.auto_index_library", self.auto_index_library.isChecked())
+        self.config.set("chunk_size", self.chunk_size_spin.value())
+        self.config.set("chunk_overlap", self.chunk_overlap_spin.value())
+        self.config.set("indexing_options.philosophy_mode", self.philosophy_mode.isChecked())
+        self.config.set("indexing_options.skip_matter", self.skip_matter.isChecked())
 
         # Save to disk
         self.config.save()
 
     def _test_connection(self):
         """Test API connection"""
-        # This will be implemented when we create the embedding service
         from PyQt5.Qt import QMessageBox
-
-        QMessageBox.information(
-            self,
-            "Test Connection",
-            "Connection testing will be implemented with the embedding service.",
-        )
+        import asyncio
+        
+        try:
+            # Get the plugin instance through the parent chain
+            # ConfigWidget -> ConfigDialog -> plugin
+            plugin = None
+            parent = self.parent()
+            while parent and not plugin:
+                if hasattr(parent, 'plugin'):
+                    plugin = parent.plugin
+                    break
+                parent = parent.parent()
+            
+            if not plugin:
+                QMessageBox.critical(
+                    self,
+                    "Test Connection",
+                    "Unable to access plugin instance."
+                )
+                return
+            
+            # Get embedding service
+            service = plugin.get_embedding_service()
+            if not service:
+                QMessageBox.critical(
+                    self,
+                    "Test Connection", 
+                    "Embedding service is not initialized.\nPlease check your configuration."
+                )
+                return
+            
+            # Test the connection
+            QMessageBox.information(
+                self,
+                "Test Connection",
+                "Testing connection..."
+            )
+            
+            try:
+                # Run async test
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                result = loop.run_until_complete(service.test_connection())
+            finally:
+                loop.close()
+            
+            # Show result
+            if result.get('status') == 'success':
+                QMessageBox.information(
+                    self,
+                    "Connection Test Successful",
+                    f"Provider: {result.get('provider', 'Unknown')}\n"
+                    f"Status: {result.get('message', 'Connected successfully')}"
+                )
+            else:
+                QMessageBox.critical(
+                    self,
+                    "Connection Test Failed",
+                    f"Provider: {result.get('provider', 'Unknown')}\n"
+                    f"Error: {result.get('message', 'Connection failed')}"
+                )
+                
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Test Connection Error",
+                f"An error occurred while testing connection:\n\n{str(e)}"
+            )

@@ -209,3 +209,80 @@ If TDD is violated again, I should:
 - **TDD is about the cycle, not just having tests**
 
 **Status: Recovered from TDD violation, but the violation itself remains unacceptable**
+
+## [2025-05-31] CRITICAL_VIOLATION - Assumption-Based Error (QSlider API)
+
+**Type**: CRITICAL_VIOLATION  
+**Component**: API Compatibility/Debugging  
+**Severity**: UNACCEPTABLE  
+
+### Description
+Made a critical assumption about QSlider API availability in Calibre without verification, leading to incorrect diagnosis and attempted fix of Qt compatibility error.
+
+### What Went Wrong
+1. **ASSUMED API UNAVAILABILITY** - Claimed `QSlider.TicksBelow` doesn't exist without checking
+2. **NO VERIFICATION** - Did not use `calibre-debug -c` to test actual API availability  
+3. **WRONG DIAGNOSIS** - Incorrectly concluded the attribute was missing rather than incorrectly accessed
+4. **ATTEMPTED WRONG FIX** - Tried to comment out working code based on false assumption
+
+### Error Details
+```
+AttributeError: type object 'QSlider' has no attribute 'TicksBelow'
+```
+
+**My Wrong Assumption**: "TicksBelow doesn't exist in Calibre's Qt"  
+**Actual Issue**: Should be `QSlider.TickPosition.TicksBelow`, not `QSlider.TicksBelow`
+
+### Correct Verification Process (What Should Have Been Done)
+```bash
+# STEP 1: Check what attributes exist
+calibre-debug -c "from PyQt5.Qt import QSlider; print([attr for attr in dir(QSlider) if 'Tick' in attr])"
+# Result: ['TickPosition', 'setTickInterval', 'setTickPosition']
+
+# STEP 2: Check TickPosition enum values  
+calibre-debug -c "from PyQt5.Qt import QSlider; tp = QSlider.TickPosition; print([attr for attr in dir(tp) if not attr.startswith('_')])"
+# Result: ['NoTicks', 'TicksAbove', 'TicksBelow', 'TicksBothSides']
+
+# STEP 3: Identify correct usage
+# QSlider.TickPosition.TicksBelow (not QSlider.TicksBelow)
+```
+
+### Root Cause Analysis
+1. **ASSUMPTION HABIT** - Defaulted to assuming rather than verifying
+2. **LAZY DEBUGGING** - Didn't take time to properly investigate the error
+3. **PATTERN RECOGNITION FAILURE** - Didn't recognize this as enum access issue
+4. **PROCESS VIOLATION** - Ignored the "verify first" principle
+
+### Impact
+- **WRONG SOLUTION** - Nearly removed working functionality
+- **TIME WASTE** - User had to correct the assumption
+- **TRUST DAMAGE** - Demonstrated lack of proper debugging discipline
+- **METHODOLOGY FAILURE** - Violated fundamental debugging principles
+
+### Correct Fix Applied
+```python
+# Wrong (what was causing error):
+self.slider.setTickPosition(QSlider.TicksBelow)
+
+# Correct (actual fix):
+self.slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+```
+
+### Prevention Measures Added
+1. **NO ASSUMPTIONS RULE** - Added to CLAUDE.md with mandatory verification process
+2. **VERIFICATION COMMANDS** - Must show exact commands used to verify
+3. **VIOLATION CONSEQUENCES** - Document all assumption-based errors as CRITICAL_VIOLATION
+
+### Commitment
+- **NEVER AGAIN** make API availability assumptions without verification
+- **ALWAYS** use `calibre-debug -c` to test exact code
+- **DOCUMENT** verification commands used
+- **VERIFY BEFORE DIAGNOSE** - test first, assume never
+
+### Action Items
+- [x] Add NO ASSUMPTIONS RULE to CLAUDE.md
+- [x] Fix the actual QSlider enum access issue
+- [x] Document this violation in DEVELOPMENT_FEEDBACK.md
+- [ ] Test the corrected plugin to ensure it works
+
+**This type of assumption-based error is unacceptable and must not happen again.**

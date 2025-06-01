@@ -416,6 +416,44 @@ class EmbeddingService:
         """Clear embedding cache"""
         if self.cache:
             self.cache.clear()
+    
+    async def test_connection(self) -> dict:
+        """Test connection to embedding provider"""
+        if not self.providers:
+            return {
+                'status': 'error',
+                'provider': 'none',
+                'message': 'No embedding providers configured'
+            }
+        
+        # Test the first provider
+        provider = self.providers[0]
+        provider_name = provider.__class__.__name__.replace('Provider', '').lower()
+        
+        try:
+            # Try to generate a simple embedding
+            test_text = "This is a test"
+            embedding = await provider.embed_text(test_text)
+            
+            if embedding and len(embedding) > 0:
+                return {
+                    'status': 'success',
+                    'provider': provider_name,
+                    'message': f'Successfully connected to {provider_name}'
+                }
+            else:
+                return {
+                    'status': 'error',
+                    'provider': provider_name,
+                    'message': 'Provider returned empty embedding'
+                }
+                
+        except Exception as e:
+            return {
+                'status': 'error',
+                'provider': provider_name,
+                'message': str(e)
+            }
 
 
 def create_embedding_service(config: Dict[str, Any]) -> EmbeddingService:

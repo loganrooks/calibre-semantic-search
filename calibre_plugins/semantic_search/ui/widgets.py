@@ -37,7 +37,7 @@ class SimilaritySlider(QWidget):
         self.slider = QSlider(Qt.Horizontal)
         self.slider.setRange(0, 100)
         self.slider.setValue(int(initial_value * 100))
-        self.slider.setTickPosition(QSlider.TicksBelow)
+        self.slider.setTickPosition(QSlider.TickPosition.TicksBelow)
         self.slider.setTickInterval(10)
 
         # Labels
@@ -401,3 +401,179 @@ class ResultFilterPanel(QFrame):
         """Update author list from search results"""
         self.author_combo.clear()
         self.author_combo.addItems(sorted(set(authors)))
+
+
+class ResultCard(QFrame):
+    """Card widget for displaying search results"""
+    
+    # Signals
+    viewInBook = pyqtSignal(int)  # book_id
+    findSimilar = pyqtSignal(int)  # chunk_id
+    copyCitation = pyqtSignal(dict)  # result_data
+    
+    def __init__(self, result_data, parent=None):
+        super().__init__(parent)
+        self.result_data = result_data
+        self.setFrameStyle(QFrame.StyledPanel)
+        self.setLineWidth(1)
+        self._setup_ui()
+    
+    def _setup_ui(self):
+        """Set up the result card UI"""
+        layout = QVBoxLayout()
+        layout.setContentsMargins(10, 10, 10, 10)
+        self.setLayout(layout)
+        
+        # Header with book info
+        header_layout = QHBoxLayout()
+        
+        # Book title and author
+        title_label = QLabel(f"<b>{self.result_data.get('title', 'Unknown Title')}</b>")
+        title_label.setWordWrap(True)
+        author_label = QLabel(f"by {self.result_data.get('author', 'Unknown Author')}")
+        author_label.setStyleSheet("QLabel { color: gray; }")
+        
+        info_layout = QVBoxLayout()
+        info_layout.addWidget(title_label)
+        info_layout.addWidget(author_label)
+        info_layout.setSpacing(2)
+        
+        header_layout.addLayout(info_layout)
+        header_layout.addStretch()
+        
+        # Similarity score
+        score = self.result_data.get('similarity', 0.0)
+        score_label = QLabel(f"<b>{score:.1%}</b>")
+        score_label.setStyleSheet(f"""
+            QLabel {{ 
+                background-color: {self._get_score_color(score)}; 
+                color: white; 
+                padding: 4px 8px; 
+                border-radius: 4px;
+                font-size: 12pt;
+            }}
+        """)
+        score_label.setAlignment(Qt.AlignCenter)
+        header_layout.addWidget(score_label)
+        
+        layout.addLayout(header_layout)
+        
+        # Content preview
+        content = self.result_data.get('chunk_text', '')
+        if len(content) > 200:
+            content = content[:200] + "..."
+        
+        content_label = QLabel(content)
+        content_label.setWordWrap(True)
+        content_label.setStyleSheet("""
+            QLabel { 
+                background-color: #f8f9fa; 
+                padding: 8px; 
+                border-radius: 4px;
+                border: 1px solid #e9ecef;
+            }
+        """)
+        layout.addWidget(content_label)
+        
+        # Action buttons
+        button_layout = QHBoxLayout()
+        
+        view_btn = QPushButton("View in Book")
+        view_btn.clicked.connect(lambda: self.viewInBook.emit(
+            self.result_data.get('book_id', 0)
+        ))
+        
+        similar_btn = QPushButton("Find Similar")
+        similar_btn.clicked.connect(lambda: self.findSimilar.emit(
+            self.result_data.get('chunk_id', 0)
+        ))
+        
+        citation_btn = QPushButton("Copy Citation")
+        citation_btn.clicked.connect(lambda: self.copyCitation.emit(self.result_data))
+        
+        button_layout.addWidget(view_btn)
+        button_layout.addWidget(similar_btn)
+        button_layout.addWidget(citation_btn)
+        button_layout.addStretch()
+        
+        layout.addLayout(button_layout)
+        
+        # Set hover effect
+        self.setStyleSheet("""
+            ResultCard {
+                background-color: white;
+                border: 1px solid #dee2e6;
+                border-radius: 6px;
+            }
+            ResultCard:hover {
+                border-color: #007bff;
+                background-color: #f8f9ff;
+            }
+        """)
+    
+    def _get_score_color(self, score):
+        """Get color based on similarity score"""
+        if score >= 0.8:
+            return "#28a745"  # Green
+        elif score >= 0.6:
+            return "#ffc107"  # Yellow
+        elif score >= 0.4:
+            return "#fd7e14"  # Orange
+        else:
+            return "#dc3545"  # Red
+
+
+class AutoCompleteScope(QWidget):
+    """Widget for autocomplete-based scope selection"""
+    
+    def __init__(self, gui, parent=None):
+        super().__init__(parent)
+        self.gui = gui
+        self.scope_type = None
+        self.selected_items = []
+        self.available_data = {}
+        
+    def set_scope_type(self, scope_type: str):
+        """Set the scope type (authors, tags, etc.)"""
+        self.scope_type = scope_type
+        self._load_available_data()
+    
+    def _load_available_data(self):
+        """Load available data from Calibre library"""
+        if self.scope_type and hasattr(self.gui, 'current_db'):
+            db = self.gui.current_db.new_api
+            field_data = db.all_field_names()
+            self.available_data = field_data.get(self.scope_type, [])
+    
+    def get_completions(self, text: str) -> list:
+        """Get completion suggestions for given text"""
+        if not text or not self.available_data:
+            return []
+        
+        # Simple substring matching (case insensitive)
+        text_lower = text.lower()
+        completions = [
+            item for item in self.available_data 
+            if text_lower in item.lower()
+        ]
+        return completions
+    
+    def add_selection(self, item: str) -> bool:
+        """Add an item to selection (returns False if invalid)"""
+        if item not in self.available_data:
+            return False
+        
+        if item not in self.selected_items:
+            self.selected_items.append(item)
+        return True
+    
+    def get_selected_items(self) -> list:
+        """Get list of selected items"""
+        return self.selected_items.copy()
+    
+    def get_scope_data(self) -> dict:
+        """Get scope data for search engine"""
+        return {
+            'scope_type': self.scope_type,
+            'selected_items': self.selected_items.copy()
+        }

@@ -36,6 +36,7 @@ from PyQt5.Qt import (
     pyqtSignal,
 )
 
+from calibre.gui2 import info_dialog
 from calibre_plugins.semantic_search.config import SemanticSearchConfig
 from calibre_plugins.semantic_search.core.search_engine import (
     SearchEngine,
@@ -44,88 +45,14 @@ from calibre_plugins.semantic_search.core.search_engine import (
     SearchResult,
     SearchScope,
 )
+from calibre_plugins.semantic_search.ui.widgets import (
+    ResultCard,
+    ScopeSelector,
+    SearchModeSelector,
+    SimilaritySlider,
+)
 
 logger = logging.getLogger(__name__)
-
-
-class ResultCard(QWidget):
-    """Custom widget for displaying a search result"""
-
-    view_clicked = pyqtSignal(int)  # book_id
-    similar_clicked = pyqtSignal(int)  # chunk_id
-
-    def __init__(self, result: SearchResult, parent=None):
-        super().__init__(parent)
-        self.result = result
-        self._setup_ui()
-
-    def _setup_ui(self):
-        layout = QVBoxLayout()
-        self.setLayout(layout)
-
-        # Header with title and authors
-        header_layout = QHBoxLayout()
-
-        # Book info
-        book_info = QLabel(
-            f"<b>{self.result.book_title}</b><br>"
-            f"<i>{', '.join(self.result.authors)}</i>"
-        )
-        header_layout.addWidget(book_info)
-
-        # Similarity score
-        score_label = QLabel(f"{self.result.similarity_score:.2%}")
-        score_label.setStyleSheet("color: green; font-weight: bold;")
-        header_layout.addStretch()
-        header_layout.addWidget(score_label)
-
-        layout.addLayout(header_layout)
-
-        # Chunk text
-        text_edit = QTextEdit()
-        text_edit.setPlainText(self.result.chunk_text)
-        text_edit.setReadOnly(True)
-        text_edit.setMaximumHeight(150)
-        layout.addWidget(text_edit)
-
-        # Action buttons
-        button_layout = QHBoxLayout()
-
-        view_btn = QPushButton("View in Book")
-        view_btn.clicked.connect(lambda: self.view_clicked.emit(self.result.book_id))
-        button_layout.addWidget(view_btn)
-
-        similar_btn = QPushButton("Find Similar")
-        similar_btn.clicked.connect(
-            lambda: self.similar_clicked.emit(self.result.chunk_id)
-        )
-        button_layout.addWidget(similar_btn)
-
-        cite_btn = QPushButton("Copy Citation")
-        cite_btn.clicked.connect(self._copy_citation)
-        button_layout.addWidget(cite_btn)
-
-        button_layout.addStretch()
-        layout.addLayout(button_layout)
-
-        # Style
-        self.setStyleSheet(
-            """
-            ResultCard {
-                border: 1px solid #ccc;
-                border-radius: 5px;
-                padding: 10px;
-                margin: 5px;
-            }
-        """
-        )
-
-    def _copy_citation(self):
-        """Copy citation to clipboard"""
-        from PyQt5.Qt import QApplication
-
-        clipboard = QApplication.clipboard()
-        clipboard.setText(self.result.citation)
 
 
 class SemanticSearchDialog(QDialog):
@@ -206,30 +133,15 @@ class SemanticSearchDialog(QDialog):
         )
         options_layout.addWidget(self.mode_combo, 0, 1)
 
-        # Search scope
+        # Search scope - use advanced widget
         options_layout.addWidget(QLabel("Scope:"), 0, 2)
-        self.scope_combo = QComboBox()
-        self.scope_combo.addItems(
-            [
-                "Entire Library",
-                "Current Book",
-                "Selected Books",
-                "Specific Author",
-                "Specific Tag",
-            ]
-        )
-        options_layout.addWidget(self.scope_combo, 0, 3)
+        self.scope_selector = ScopeSelector(self.gui)
+        options_layout.addWidget(self.scope_selector, 0, 3)
 
-        # Similarity threshold
+        # Similarity threshold - use custom widget
         options_layout.addWidget(QLabel("Similarity:"), 1, 0)
-        threshold_layout = QHBoxLayout()
-        self.threshold_slider = QSlider(Qt.Horizontal)
-        self.threshold_slider.setRange(0, 100)
-        self.threshold_slider.setValue(70)
-        self.threshold_label = QLabel("0.70")
-        threshold_layout.addWidget(self.threshold_slider)
-        threshold_layout.addWidget(self.threshold_label)
-        options_layout.addLayout(threshold_layout, 1, 1)
+        self.threshold_slider = SimilaritySlider(0.7)
+        options_layout.addWidget(self.threshold_slider, 1, 1)
 
         # Result limit
         options_layout.addWidget(QLabel("Max Results:"), 1, 2)
@@ -279,17 +191,14 @@ class SemanticSearchDialog(QDialog):
         self.search_button.clicked.connect(self.perform_search)
         self.clear_button.clicked.connect(self.clear_search)
         self.query_input.textChanged.connect(self._update_char_counter)
-        self.threshold_slider.valueChanged.connect(
-            lambda v: self.threshold_label.setText(f"{v/100:.2f}")
-        )
+        # Connect threshold slider
+        self.threshold_slider.valueChanged.connect(self._on_threshold_changed)
 
     def _load_settings(self):
         """Load saved settings"""
         # Load search options
         self.limit_spin.setValue(self.config.get("search_options.default_limit", 20))
-        threshold = int(
-            self.config.get("search_options.similarity_threshold", 0.7) * 100
-        )
+        threshold = self.config.get("search_options.similarity_threshold", 0.7)
         self.threshold_slider.setValue(threshold)
 
         # Set default scope
@@ -298,8 +207,7 @@ class SemanticSearchDialog(QDialog):
             "current_book": 1,
             "selected_books": 2,
         }
-        scope = self.config.get("search_options.scope", "library")
-        self.scope_combo.setCurrentIndex(scope_map.get(scope, 0))
+        # No need to set scope selector here - it initializes itself
 
     def _update_char_counter(self):
         """Update character counter"""
@@ -383,10 +291,21 @@ class SemanticSearchDialog(QDialog):
 
         # Add results to list
         for result in results:
+            # Convert SearchResult to dict format expected by ResultCard
+            result_data = {
+                'title': result.book_title,
+                'author': ', '.join(result.authors) if hasattr(result, 'authors') else 'Unknown',
+                'similarity': result.similarity_score,
+                'chunk_text': result.chunk_text,
+                'book_id': result.book_id,
+                'chunk_id': getattr(result, 'chunk_id', 0)
+            }
+            
             # Create custom widget
-            card = ResultCard(result)
-            card.view_clicked.connect(self._view_in_book)
-            card.similar_clicked.connect(self._find_similar)
+            card = ResultCard(result_data)
+            card.viewInBook.connect(self._view_in_book)
+            card.findSimilar.connect(self._find_similar)
+            card.copyCitation.connect(self._copy_citation)
 
             # Create list item
             item = QListWidgetItem()
@@ -415,27 +334,42 @@ class SemanticSearchDialog(QDialog):
             3: SearchMode.HYBRID,
         }
 
+        # Get scope from scope selector
+        scope_data = self.scope_selector.get_scope_data()
+        scope_type = self.scope_selector.scope_combo.currentText()
+        
         scope_map = {
-            0: SearchScope.LIBRARY,
-            1: SearchScope.CURRENT_BOOK,
-            2: SearchScope.SELECTED_BOOKS,
-            3: SearchScope.AUTHOR,
-            4: SearchScope.TAG,
+            "Entire Library": SearchScope.LIBRARY,
+            "Current Book": SearchScope.CURRENT_BOOK,
+            "Selected Books": SearchScope.SELECTED_BOOKS,
+            "Books by Author": SearchScope.AUTHOR,
+            "Books with Tag": SearchScope.TAG,
+            "Custom Collection": SearchScope.LIBRARY,  # Treat as library for now
         }
 
         options = SearchOptions(
             mode=mode_map.get(self.mode_combo.currentIndex(), SearchMode.SEMANTIC),
-            scope=scope_map.get(self.scope_combo.currentIndex(), SearchScope.LIBRARY),
+            scope=scope_map.get(scope_type, SearchScope.LIBRARY),
             limit=self.limit_spin.value(),
-            similarity_threshold=self.threshold_slider.value() / 100,
+            similarity_threshold=self.threshold_slider.value(),
             include_context=self.include_context_action.isChecked(),
         )
 
-        # Add specific filters based on scope
-        if options.scope == SearchScope.CURRENT_BOOK:
-            # Get current book ID from viewer if available
-            # For now, we'll need to implement this
-            pass
+        # Add scope-specific data
+        if scope_type == "Selected Books" and "book_ids" in scope_data:
+            options.book_ids = scope_data["book_ids"]
+        elif scope_type == "Books by Author" and "author" in scope_data:
+            options.author_filter = scope_data["author"]
+        elif scope_type == "Books with Tag" and "tag" in scope_data:
+            options.tag_filter = scope_data["tag"]
+        elif scope_type == "Current Book":
+            # Try to get current book from library view
+            try:
+                current_row = self.gui.current_view().currentIndex()
+                if current_row.isValid():
+                    options.book_ids = [self.gui.current_view().model().id(current_row)]
+            except:
+                pass
 
         return options
 
@@ -493,14 +427,14 @@ class SemanticSearchDialog(QDialog):
                 self.status_bar.setText(f"Opened book {book_id} in viewer")
             else:
                 info_dialog(
-                    self.gui,
+                    self,
                     "View in Book",
                     f"Could not find viewer action. Book ID: {book_id}",
                     show=True,
                 )
         except Exception as e:
             info_dialog(
-                self.gui,
+                self,
                 "View in Book Error",
                 f"Failed to open book {book_id}: {str(e)}",
                 show=True,
@@ -532,16 +466,67 @@ class SemanticSearchDialog(QDialog):
                 self.status_bar.setText("Searching for similar passages...")
             else:
                 info_dialog(
-                    self.gui,
+                    self,
                     "Find Similar",
                     f"Could not find chunk {chunk_id} in current results.",
                     show=True,
                 )
         except Exception as e:
             info_dialog(
-                self.gui,
+                self,
                 "Find Similar Error",
                 f"Failed to find similar passages: {str(e)}",
+                show=True,
+            )
+
+    def _on_threshold_changed(self, value: float):
+        """Handle similarity threshold change"""
+        # Update the config with new threshold value
+        self.config.set("search_options.similarity_threshold", value)
+        self.status_bar.setText(f"Similarity threshold set to {value:.2f}")
+
+    def _copy_citation(self, book_id: int, chunk_id: int = None):
+        """Copy citation to clipboard"""
+        try:
+            # Find the result data
+            result_data = None
+            for result in self.current_results:
+                if result.book_id == book_id:
+                    if chunk_id is None or (hasattr(result, 'chunk_id') and result.chunk_id == chunk_id):
+                        result_data = result
+                        break
+            
+            if result_data:
+                # Format citation
+                authors = ', '.join(result_data.authors) if hasattr(result_data, 'authors') and result_data.authors else 'Unknown Author'
+                citation = f"{authors}. {result_data.book_title}."
+                
+                # Add chunk context if available
+                if hasattr(result_data, 'chunk_text') and result_data.chunk_text:
+                    # Get first sentence or first 100 chars
+                    excerpt = result_data.chunk_text[:100].strip()
+                    if len(result_data.chunk_text) > 100:
+                        excerpt += "..."
+                    citation += f' "{excerpt}"'
+                
+                # Copy to clipboard
+                from PyQt5.Qt import QApplication
+                clipboard = QApplication.clipboard()
+                clipboard.setText(citation)
+                
+                self.status_bar.setText("Citation copied to clipboard")
+            else:
+                info_dialog(
+                    self,
+                    "Copy Citation",
+                    f"Could not find book {book_id} in current results.",
+                    show=True,
+                )
+        except Exception as e:
+            info_dialog(
+                self,
+                "Copy Citation Error", 
+                f"Failed to copy citation: {str(e)}",
                 show=True,
             )
 
@@ -564,7 +549,15 @@ class SemanticSearchDialog(QDialog):
         """Handle dialog close"""
         # Save window geometry
         # Clean up event loop
-        if hasattr(self, "loop"):
-            self.loop.close()
+        if hasattr(self, "loop") and self.loop and self.loop.is_running():
+            # Stop the loop before closing
+            self.loop.call_soon_threadsafe(self.loop.stop)
+            # Wait a moment for loop to stop
+            import time
+            time.sleep(0.1)
+        
+        if hasattr(self, "loop_thread") and self.loop_thread.is_alive():
+            # Thread will stop when loop stops
+            pass
 
         event.accept()

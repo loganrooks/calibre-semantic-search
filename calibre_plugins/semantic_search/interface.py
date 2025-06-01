@@ -2,8 +2,12 @@
 Main UI interface for Semantic Search plugin
 """
 
+import logging
+
 from calibre.gui2 import error_dialog, info_dialog
 from calibre.gui2.actions import InterfaceAction
+
+logger = logging.getLogger(__name__)
 
 # Import from qt.core instead of PyQt5 for Calibre compatibility
 try:
@@ -62,6 +66,9 @@ class SemanticSearchInterface(InterfaceAction):
 
         # Track open viewers for integration
         self.viewers = {}
+        
+        # Initialize services on startup
+        self._initialize_services()
 
     def create_menu_actions(self):
         """Create the plugin menu"""
@@ -179,11 +186,46 @@ class SemanticSearchInterface(InterfaceAction):
 
     def show_indexing_status(self):
         """Show the current indexing status"""
-        # This will be implemented with the database layer
+        try:
+            # Try to initialize if not already done
+            if not hasattr(self, 'indexing_service') or not self.indexing_service:
+                self._initialize_services()
+            
+            # Check if indexing service is available
+            if hasattr(self, 'indexing_service') and self.indexing_service:
+                # Get real status from indexing service (handle async)
+                import asyncio
+                try:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    status = loop.run_until_complete(self.indexing_service.get_library_statistics())
+                finally:
+                    loop.close()
+                
+                # Format status message
+                message = f"""Indexing Status:
+
+Total Books: {status['total_books']}
+Indexed Books: {status['indexed_books']}
+In Progress: {status['in_progress']}
+Errors: {status['errors']}
+Last Indexed: {status['last_indexed']}"""
+                
+            else:
+                # Indexing service not initialized
+                if hasattr(self, 'initialization_error'):
+                    message = f"Indexing service initialization failed:\n\n{self.initialization_error}\n\nPlease check your configuration."
+                else:
+                    message = "Indexing service is not initialized. Please configure the plugin first."
+                
+        except Exception as e:
+            # Handle errors gracefully
+            message = f"Error retrieving indexing status: {str(e)}"
+        
         info_dialog(
             self.gui,
             "Indexing Status",
-            "Indexing status will be available once the database is implemented.",
+            message,
             show=True,
         )
 
@@ -224,6 +266,83 @@ class SemanticSearchInterface(InterfaceAction):
         # This will be implemented in the viewer integration module
         pass
 
+    def _initialize_services(self):
+        """Initialize services on plugin startup"""
+        try:
+            import os
+            from calibre_plugins.semantic_search.core.embedding_service import create_embedding_service
+            from calibre_plugins.semantic_search.core.indexing_service import IndexingService
+            from calibre_plugins.semantic_search.core.text_processor import TextProcessor
+            from calibre_plugins.semantic_search.data.repositories import (
+                EmbeddingRepository, CalibreRepository
+            )
+            from calibre_plugins.semantic_search.data.database import SemanticSearchDB
+            
+            # Set up database path
+            library_path = self.gui.library_path
+            db_dir = os.path.join(library_path, 'semantic_search')
+            os.makedirs(db_dir, exist_ok=True)
+            self.db_path = os.path.join(db_dir, 'embeddings.db')
+            
+            # Initialize database if needed
+            if not os.path.exists(self.db_path):
+                # Database will be initialized on first use
+                pass
+            
+            # Create repositories
+            self.embedding_repo = EmbeddingRepository(self.db_path)
+            
+            # Check if current_db is available
+            if hasattr(self.gui, 'current_db') and self.gui.current_db:
+                if hasattr(self.gui.current_db, 'new_api'):
+                    self.calibre_repo = CalibreRepository(self.gui.current_db.new_api)
+                else:
+                    # Old Calibre version or DB not ready
+                    logger.warning("current_db doesn't have new_api, skipping CalibreRepository")
+                    self.calibre_repo = None
+            else:
+                logger.warning("current_db not available yet, skipping CalibreRepository") 
+                self.calibre_repo = None
+            
+            # Create services
+            config_dict = self.config.as_dict()
+            self.embedding_service = create_embedding_service(config_dict)
+            self.text_processor = TextProcessor()
+            
+            # Create indexing service only if we have calibre_repo
+            if self.calibre_repo:
+                self.indexing_service = IndexingService(
+                    text_processor=self.text_processor,
+                    embedding_service=self.embedding_service,
+                    embedding_repo=self.embedding_repo,
+                    calibre_repo=self.calibre_repo
+                )
+            else:
+                logger.warning("Cannot create IndexingService without CalibreRepository")
+                self.indexing_service = None
+            
+            logger.info("Successfully initialized semantic search services")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize services: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            # Store the error for display
+            self.initialization_error = str(e)
+            # Services will be created on-demand if initialization fails
+    
+    def get_embedding_service(self):
+        """Get the embedding service, creating if needed"""
+        if not hasattr(self, 'embedding_service') or not self.embedding_service:
+            self._initialize_services()
+        return self.embedding_service if hasattr(self, 'embedding_service') else None
+    
+    def get_indexing_service(self):
+        """Get the indexing service, creating if needed"""
+        if not hasattr(self, 'indexing_service') or not self.indexing_service:
+            self._initialize_services()
+        return self.indexing_service if hasattr(self, 'indexing_service') else None
+
     def library_changed(self, db):
         """
         Called when the library is changed
@@ -231,6 +350,9 @@ class SemanticSearchInterface(InterfaceAction):
         # Clear any cached data
         if hasattr(self, "search_dialog"):
             self.search_dialog.library_changed()
+        
+        # Re-initialize services for new library
+        self._initialize_services()
 
     def shutting_down(self):
         """

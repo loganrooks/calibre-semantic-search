@@ -177,15 +177,17 @@ class ConfigWidget(QWidget):
         provider_group.setLayout(provider_layout)
 
         self.provider_combo = QComboBox()
-        self.provider_combo.addItems(["mock", "openai", "vertex_ai", "cohere", "local"])
+        self.provider_combo.addItems(["mock", "openai", "azure_openai", "vertex_ai", "cohere", "local"])
         self.provider_combo.setToolTip(
             "Choose the AI service that will analyze your text during indexing.\n"
             "Mock = Free testing mode (no real AI)\n"
             "OpenAI = GPT embeddings (requires API key)\n"
+            "Azure OpenAI = Microsoft Azure (requires deployment)\n"
             "Vertex AI = Google Cloud (requires setup)\n"
             "Cohere = Cohere AI (requires API key)\n"
             "Local = Ollama (coming soon)"
         )
+        self.provider_combo.currentTextChanged.connect(self._on_provider_changed)
         provider_layout.addRow("Provider:", self.provider_combo)
 
         # Model selection
@@ -203,6 +205,27 @@ class ConfigWidget(QWidget):
         provider_layout.addRow("", test_btn)
 
         layout.addWidget(provider_group)
+        
+        # Azure-specific settings
+        self.azure_group = QGroupBox("Azure OpenAI Settings")
+        azure_layout = QFormLayout()
+        self.azure_group.setLayout(azure_layout)
+        
+        self.azure_deployment_edit = QLineEdit()
+        self.azure_deployment_edit.setPlaceholderText("e.g., text-embedding-ada-002")
+        azure_layout.addRow("Deployment Name:", self.azure_deployment_edit)
+        
+        self.azure_api_base_edit = QLineEdit()
+        self.azure_api_base_edit.setPlaceholderText("https://your-resource.openai.azure.com/")
+        azure_layout.addRow("API Base URL:", self.azure_api_base_edit)
+        
+        self.azure_api_version_edit = QLineEdit()
+        self.azure_api_version_edit.setText("2024-02-01")
+        azure_layout.addRow("API Version:", self.azure_api_version_edit)
+        
+        layout.addWidget(self.azure_group)
+        self.azure_group.setVisible(False)  # Hidden by default
+        
         layout.addStretch()
 
         return widget
@@ -460,6 +483,14 @@ class ConfigWidget(QWidget):
         self.skip_matter.setChecked(
             self.config.get("indexing_options.skip_matter", True)
         )
+        
+        # Azure-specific settings
+        self.azure_deployment_edit.setText(self.config.get("azure_deployment", ""))
+        self.azure_api_base_edit.setText(self.config.get("azure_api_base", ""))
+        self.azure_api_version_edit.setText(self.config.get("azure_api_version", "2024-02-01"))
+        
+        # Trigger provider changed to show/hide fields
+        self._on_provider_changed(self.provider_combo.currentText())
 
     def save_settings(self):
         """Save settings to config"""
@@ -500,10 +531,34 @@ class ConfigWidget(QWidget):
         self.config.set("chunk_overlap", self.chunk_overlap_spin.value())
         self.config.set("indexing_options.philosophy_mode", self.philosophy_mode.isChecked())
         self.config.set("indexing_options.skip_matter", self.skip_matter.isChecked())
+        
+        # Azure-specific settings
+        self.config.set("azure_deployment", self.azure_deployment_edit.text())
+        self.config.set("azure_api_base", self.azure_api_base_edit.text())
+        self.config.set("azure_api_version", self.azure_api_version_edit.text())
 
         # Save to disk
         self.config.save()
 
+    def _on_provider_changed(self, provider):
+        """Handle provider selection change"""
+        # Show/hide provider-specific settings
+        self.azure_group.setVisible(provider == "azure_openai")
+        
+        # Update model field placeholder based on provider
+        model_placeholders = {
+            "openai": "text-embedding-3-small",
+            "azure_openai": "Use deployment name instead",
+            "cohere": "embed-english-v3.0",
+            "vertex_ai": "text-embedding-preview-0815",
+            "mock": "Not applicable",
+            "local": "mxbai-embed-large"
+        }
+        self.model_edit.setPlaceholderText(model_placeholders.get(provider, ""))
+        
+        # Disable model field for Azure (uses deployment name)
+        self.model_edit.setEnabled(provider != "azure_openai")
+    
     def _test_connection(self):
         """Test API connection"""
         from PyQt5.Qt import QMessageBox

@@ -199,6 +199,76 @@ class OpenAIProvider(BaseEmbeddingProvider):
         return f"openai/{self.model}"
 
 
+class AzureOpenAIProvider(BaseEmbeddingProvider):
+    """Azure OpenAI embedding provider"""
+
+    def __init__(
+        self, 
+        api_key: str, 
+        deployment: str,
+        api_base: str,
+        api_version: str = "2024-02-01",
+        model: Optional[str] = None
+    ):
+        super().__init__(api_key, model or deployment)
+        self.deployment = deployment
+        self.api_base = api_base
+        self.api_version = api_version
+        # Azure uses same dimensions as OpenAI
+        self._dimensions = 1536  # Default, can be overridden
+
+    async def generate_embedding(self, text: str) -> List[float]:
+        """Generate embedding using Azure OpenAI"""
+        try:
+            from litellm import aembedding
+
+            response = await aembedding(
+                model=f"azure/{self.deployment}",
+                input=self._truncate_text(text),
+                api_key=self.api_key,
+                api_base=self.api_base,
+                api_version=self.api_version,
+            )
+
+            embedding = response["data"][0]["embedding"]
+            return embedding
+
+        except Exception as e:
+            logger.error(f"Azure OpenAI embedding error: {e}")
+            raise
+
+    async def generate_batch(self, texts: List[str]) -> List[List[float]]:
+        """Batch generation for Azure OpenAI"""
+        try:
+            from litellm import aembedding
+
+            truncated = [self._truncate_text(text) for text in texts]
+
+            response = await aembedding(
+                model=f"azure/{self.deployment}",
+                input=truncated,
+                api_key=self.api_key,
+                api_base=self.api_base,
+                api_version=self.api_version,
+            )
+
+            embeddings = [
+                item["embedding"]
+                for item in response["data"]
+            ]
+            return embeddings
+
+        except Exception as e:
+            logger.error(f"Azure OpenAI batch embedding error: {e}")
+            return await super().generate_batch(texts)
+
+    def get_dimensions(self) -> int:
+        return self._dimensions
+
+    def get_model_name(self) -> str:
+        return f"azure/{self.deployment}"
+
+
 class CohereProvider(BaseEmbeddingProvider):
     """Cohere embedding provider"""
 
@@ -477,6 +547,17 @@ def create_embedding_service(config: Dict[str, Any]) -> EmbeddingService:
             provider = OpenAIProvider(
                 api_key=api_key,
                 model=config.get("embedding_model", "text-embedding-3-small"),
+            )
+            providers.append(provider)
+
+    elif provider_name == "azure_openai":
+        if api_key := api_keys.get("azure_openai"):
+            provider = AzureOpenAIProvider(
+                api_key=api_key,
+                deployment=config.get("azure_deployment", "text-embedding-ada-002"),
+                api_base=config.get("azure_api_base", ""),
+                api_version=config.get("azure_api_version", "2024-02-01"),
+                model=config.get("embedding_model"),
             )
             providers.append(provider)
 

@@ -2,15 +2,15 @@
 
 **Last Updated**: 2025-06-01
 **Version**: 0.6.0 → 1.0.0
-**Overall Completion**: 74%
+**Overall Completion**: 78%
 
 ## 🚨 Quick Status Overview
 
 ```
 Backend:     ████████████████████ 96%  ✅ Excellent
 Frontend:    █████████████████░░░ 87%  ✅ Very Good  
-Integration: ███████░░░░░░░░░░░░░ 35%  ❌ Getting Better
-Testing:     ███████████████████░ 92%  ✅ Excellent
+Integration: ████████████░░░░░░░░ 60%  🟡 Major Progress!
+Testing:     ███████████████████░ 94%  ✅ Excellent
 Docs:        ████████████████████ 100% ✅ Excellent
 ```
 
@@ -36,15 +36,16 @@ Docs:        ████████████████████ 100% �
    - Reduced root directory to 4 essential files
    - Created maintenance workflow and health monitoring
 
-5. **Search Not Connected** ❌ BLOCKER
+5. **Search Not Connected** ❌ BLOCKER (NEXT PRIORITY)
    - Search dialog exists but shows "not implemented"
    - Backend SearchEngine ready but not wired up
    - Need to implement `_initialize_search_engine()` properly
 
-6. **Indexing Not Connected** ❌ BLOCKER
-   - "Index Books" shows placeholder dialog
-   - IndexingService exists but not called
-   - Need to implement `_start_indexing()` properly
+6. **Indexing Not Connected** ✅ FIXED (2025-06-01)
+   - Implemented real `_start_indexing()` method with full workflow
+   - Added progress dialog with cancellation support
+   - Connected IndexingService to UI with background threading
+   - Complete flow: UI → IndexingService → EmbeddingService → Storage
 
 7. **Viewer Integration Empty** ❌
    - ViewerIntegration class exists and works
@@ -76,8 +77,9 @@ Docs:        ████████████████████ 100% �
 - ✅ **Scope Selector** - Works but needs autocomplete upgrade
 - ✅ **Icons** - Professional icon set included
 
-### Testing (92% Complete)
-- ✅ 220+ unit tests passing
+### Testing (94% Complete)
+- ✅ 228+ unit tests passing (NEW!)
+- ✅ Complete indexing flow tests (NEW!)
 - ✅ Performance benchmarks
 - ✅ Philosophical test cases
 - ✅ Test isolation with calibre_mocks

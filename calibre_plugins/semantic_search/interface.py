@@ -19,6 +19,9 @@ except ImportError:
 
 from calibre_plugins.semantic_search.config import SemanticSearchConfig
 
+# Qt imports for threading support
+from PyQt5.Qt import QTimer
+
 
 class SemanticSearchInterface(InterfaceAction):
     """
@@ -175,14 +178,125 @@ class SemanticSearchInterface(InterfaceAction):
 
     def _start_indexing(self, book_ids):
         """Start the indexing process for given books"""
-        # This will be implemented when we create the indexing service
-        info_dialog(
-            self.gui,
-            "Indexing",
-            f"Indexing {len(book_ids)} books...\n\n"
-            "This feature will be implemented with the indexing service.",
-            show=True,
+        # Ensure services are initialized
+        if not hasattr(self, 'indexing_service') or not self.indexing_service:
+            self._initialize_services()
+        
+        if not self.indexing_service:
+            error_dialog(
+                self.gui,
+                "Indexing Error",
+                "Indexing service could not be initialized.\n\n"
+                "Please check your configuration and try again.",
+                show=True,
+            )
+            return
+        
+        # Create simple progress dialog
+        from PyQt5.Qt import QProgressDialog
+        
+        progress_dialog = QProgressDialog(
+            f"Indexing {len(book_ids)} books...", 
+            "Cancel", 
+            0, 
+            len(book_ids),
+            self.gui
         )
+        progress_dialog.setWindowTitle("Semantic Search - Indexing Books")
+        progress_dialog.setModal(True)
+        progress_dialog.setMinimumDuration(0)
+        
+        # Handle cancellation
+        def on_cancel():
+            if self.indexing_service:
+                self.indexing_service.request_cancel()
+                
+        progress_dialog.canceled.connect(on_cancel)
+        
+        def on_progress(progress_info):
+            """Handle progress updates from indexing service"""
+            current_book = progress_info.get('current_book', 0)
+            book_id = progress_info.get('book_id', 'Unknown')
+            status = progress_info.get('status', 'Processing')
+            
+            progress_dialog.setValue(current_book)
+            progress_dialog.setLabelText(f"Book {current_book}/{len(book_ids)}: {status} (ID: {book_id})")
+        
+        def on_complete(stats):
+            """Handle indexing completion"""
+            progress_dialog.close()
+            
+            # Show results
+            success_count = stats.get('successful_books', 0)
+            failed_count = stats.get('failed_books', 0)
+            total_chunks = stats.get('total_chunks', 0)
+            total_time = stats.get('total_time', 0)
+            
+            message = (
+                f"Indexing completed!\n\n"
+                f"Successfully indexed: {success_count} books\n"
+                f"Failed: {failed_count} books\n"
+                f"Total text chunks created: {total_chunks}\n"
+                f"Time taken: {total_time:.1f} seconds"
+            )
+            
+            if failed_count > 0:
+                errors = stats.get('errors', [])
+                error_details = "\n".join([f"Book {e['book_id']}: {e['error']}" for e in errors[:3]])
+                if len(errors) > 3:
+                    error_details += f"\n... and {len(errors) - 3} more errors"
+                message += f"\n\nErrors:\n{error_details}"
+            
+            if failed_count > 0:
+                error_dialog(self.gui, "Indexing Results", message, show=True)
+            else:
+                info_dialog(self.gui, "Indexing Complete", message, show=True)
+        
+        def on_error(error):
+            """Handle indexing errors"""
+            progress_dialog.close()
+            error_dialog(
+                self.gui,
+                "Indexing Error",
+                f"An error occurred during indexing:\n\n{str(error)}",
+                show=True,
+            )
+        
+        # Add progress callback
+        self.indexing_service.add_progress_callback(on_progress)
+        
+        # Start indexing in background thread
+        import threading
+        import asyncio
+        
+        def run_indexing():
+            """Run indexing in background thread"""
+            try:
+                # Create new event loop for this thread
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+                # Run the indexing
+                stats = loop.run_until_complete(
+                    self.indexing_service.index_books(book_ids, reindex=False)
+                )
+                
+                # Report completion on main thread using Qt's invoke method
+                from PyQt5.Qt import QTimer, QApplication
+                QTimer.singleShot(0, lambda: on_complete(stats))
+                
+            except Exception as e:
+                # Report error on main thread  
+                from PyQt5.Qt import QTimer, QApplication
+                QTimer.singleShot(0, lambda: on_error(e))
+            finally:
+                # Clean up
+                self.indexing_service.remove_progress_callback(on_progress)
+                loop.close()
+        
+        # Show progress dialog and start background thread
+        progress_dialog.show()
+        threading.Thread(target=run_indexing, daemon=True).start()
 
     def show_indexing_status(self):
         """Show the current indexing status"""
@@ -361,6 +475,7 @@ Last Indexed: {status['last_indexed']}"""
         # Clean up resources
         if hasattr(self, "search_dialog"):
             self.search_dialog.close()
+    
 
 
 def get_icons(name):

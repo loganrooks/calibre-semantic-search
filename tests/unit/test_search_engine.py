@@ -766,5 +766,67 @@ class TestSearchResultTransformation:
         assert result.citation == 'Test Author, Co-Author. Test Book.'
 
 
+class TestExcludedBooksFilter:
+    """Test excluded books filtering functionality"""
+    
+    def test_build_scope_filters_with_excluded_books(self):
+        """Test building filters with excluded book IDs"""
+        repository = Mock()
+        embedding_service = Mock()
+        engine = SearchEngine(repository, embedding_service)
+        
+        options = SearchOptions(
+            scope=SearchScope.LIBRARY,
+            excluded_book_ids=[1, 2, 3]
+        )
+        filters = engine._build_scope_filters(options)
+        
+        assert 'excluded_book_ids' in filters
+        assert filters['excluded_book_ids'] == [1, 2, 3]
+    
+    def test_build_scope_filters_with_book_ids_and_excluded(self):
+        """Test building filters with both included and excluded book IDs"""
+        repository = Mock()
+        embedding_service = Mock()
+        engine = SearchEngine(repository, embedding_service)
+        
+        options = SearchOptions(
+            scope=SearchScope.SELECTED_BOOKS,
+            book_ids=[5, 6, 7],
+            excluded_book_ids=[1, 2]
+        )
+        filters = engine._build_scope_filters(options)
+        
+        assert 'book_ids' in filters
+        assert filters['book_ids'] == [5, 6, 7]
+        assert 'excluded_book_ids' in filters
+        assert filters['excluded_book_ids'] == [1, 2]
+    
+    @pytest.mark.asyncio
+    async def test_semantic_search_passes_excluded_books_filter(self):
+        """Test that semantic search passes excluded books filter to repository"""
+        repository = AsyncMock()
+        embedding_service = AsyncMock()
+        engine = SearchEngine(repository, embedding_service)
+        
+        # Mock services
+        embedding_service.generate_embedding.return_value = [0.1] * 768
+        repository.search_similar.return_value = []
+        
+        options = SearchOptions(
+            scope=SearchScope.LIBRARY,
+            excluded_book_ids=[42, 99]
+        )
+        
+        await engine.search("test query", options)
+        
+        # Verify search_similar was called with excluded_book_ids filter
+        repository.search_similar.assert_called_once()
+        call_args = repository.search_similar.call_args
+        filters = call_args[1]['filters']
+        assert 'excluded_book_ids' in filters
+        assert filters['excluded_book_ids'] == [42, 99]
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

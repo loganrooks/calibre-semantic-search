@@ -66,6 +66,12 @@ class SearchOptions:
     filters: Optional[Dict[str, Any]] = None
     include_context: bool = True
     context_size: int = 500  # characters before/after
+    
+    # Scope-specific options
+    book_ids: Optional[List[int]] = None
+    excluded_book_ids: Optional[List[int]] = None
+    author_filter: Optional[str] = None
+    tag_filter: Optional[str] = None
 
 
 class SearchEngine:
@@ -311,21 +317,32 @@ class SearchEngine:
         """Build database filters based on search scope"""
         filters = options.filters or {}
 
+        # Handle scope-specific filtering
         if options.scope == SearchScope.CURRENT_BOOK:
             if "book_id" in filters:
                 filters["book_ids"] = [filters["book_id"]]
 
         elif options.scope == SearchScope.SELECTED_BOOKS:
-            if "book_ids" not in filters:
+            if options.book_ids:
+                filters["book_ids"] = options.book_ids
+            elif "book_ids" not in filters:
                 filters["book_ids"] = []
 
         elif options.scope == SearchScope.AUTHOR:
-            if "author" not in filters:
+            if options.author_filter:
+                filters["author"] = options.author_filter
+            elif "author" not in filters:
                 filters["author"] = []
 
         elif options.scope == SearchScope.TAG:
-            if "tags" not in filters:
+            if options.tag_filter:
+                filters["tags"] = options.tag_filter
+            elif "tags" not in filters:
                 filters["tags"] = []
+
+        # Handle excluded books (for similarity search)
+        if options.excluded_book_ids:
+            filters["excluded_book_ids"] = options.excluded_book_ids
 
         # LIBRARY scope has no additional filters
 

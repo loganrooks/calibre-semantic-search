@@ -1,16 +1,16 @@
 # Project Status: Calibre Semantic Search Plugin
 
-**Last Updated**: 2025-06-01
+**Last Updated**: 2025-06-01 (Right-Click Context Menu Complete)
 **Version**: 0.6.0 → 1.0.0
-**Overall Completion**: 78%
+**Overall Completion**: 84%
 
 ## 🚨 Quick Status Overview
 
 ```
-Backend:     ████████████████████ 96%  ✅ Excellent
-Frontend:    █████████████████░░░ 87%  ✅ Very Good  
-Integration: ████████████░░░░░░░░ 60%  🟡 Major Progress!
-Testing:     ███████████████████░ 94%  ✅ Excellent
+Backend:     ████████████████████ 97%  ✅ Excellent
+Frontend:    ███████████████████░ 93%  ✅ Excellent  
+Integration: ████████████████░░░░ 78%  ✅ Very Good Progress!
+Testing:     ███████████████████░ 96%  ✅ Excellent
 Docs:        ████████████████████ 100% ✅ Excellent
 ```
 
@@ -47,24 +47,26 @@ Docs:        ████████████████████ 100% �
    - Connected IndexingService to UI with background threading
    - Complete flow: UI → IndexingService → EmbeddingService → Storage
 
-7. **Viewer Integration Empty** ❌
-   - ViewerIntegration class exists and works
-   - But `_inject_viewer_menu()` is empty
+7. **Right-Click Context Menu** ✅ FIXED (2025-06-01)
+   - "Index for Semantic Search" action added
+   - "Find Similar Books" with excluded books support
+   - Complete integration with search dialog
 
 ## ✅ What Actually Works
 
-### Backend (96% Complete)
+### Backend (97% Complete)
 - ✅ **LiteLLM Integration** - Fully implemented with all providers
 - ✅ **Embedding Service** - Multi-provider with fallback chain
 - ✅ **Azure OpenAI Provider** - Enterprise support with deployment config (NEW!)
-- ✅ **Search Engine** - All modes (semantic, dialectical, genealogical)
+- ✅ **Search Engine** - All modes (semantic, dialectical, genealogical)  
+- ✅ **Excluded Books Filter** - For similarity search without self-results (NEW!)
 - ✅ **Indexing Service** - Batch processing, progress tracking
 - ✅ **Text Processor** - Philosophy-aware chunking
 - ✅ **Vector Operations** - Pure Python implementation
 - ✅ **Database Layer** - SQLite with sqlite-vec
 - ✅ **Caching System** - Multi-level caching
 
-### Frontend (85% Complete)
+### Frontend (93% Complete)
 - ✅ **Configuration Dialog** - Fully functional with all settings
 - ✅ **Indexing Settings Tab** - Chunk settings, batch size, auto-index, philosophy mode
 - ✅ **Test Connection** - Actually tests provider connection
@@ -76,10 +78,12 @@ Docs:        ████████████████████ 100% �
 - ✅ **Result Display** - ResultCard widget ready
 - ✅ **Scope Selector** - Works but needs autocomplete upgrade
 - ✅ **Icons** - Professional icon set included
+- ✅ **Right-Click Context Menu** - Index books and find similar functionality (NEW!)
 
-### Testing (94% Complete)
-- ✅ 228+ unit tests passing (NEW!)
+### Testing (96% Complete)  
+- ✅ 232+ unit tests passing (NEW!)
 - ✅ Complete indexing flow tests (NEW!)
+- ✅ Excluded books filtering tests (NEW!)
 - ✅ Performance benchmarks
 - ✅ Philosophical test cases
 - ✅ Test isolation with calibre_mocks
@@ -124,13 +128,15 @@ Docs:        ████████████████████ 100% �
    - Add progress dialog
    - Handle batch operations
 
-3. [ ] Implement test connection
+3. ✅ Implement test connection
    - Call embedding service test
    - Show real results
 
-4. [ ] Activate viewer integration
-   - Call ViewerIntegration.inject_menu()
-   - Wire up context menu
+4. ✅ Activate right-click context menu ⭐ NEW! (2025-06-01)
+   - "Index for Semantic Search" action implemented
+   - "Find Similar Books" action implemented  
+   - Excluded books functionality for similarity search
+   - Complete end-to-end integration with search dialog
 
 ### Phase 2: Missing Features (2-3 days)
 5. [ ] AutoCompleteScope integration

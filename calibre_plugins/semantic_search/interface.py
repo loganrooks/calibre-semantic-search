@@ -72,6 +72,9 @@ class SemanticSearchInterface(InterfaceAction):
         
         # Initialize services on startup
         self._initialize_services()
+        
+        # Add context menu to library view
+        self._add_library_context_menu()
 
     def create_menu_actions(self):
         """Create the plugin menu"""
@@ -475,6 +478,133 @@ Last Indexed: {status['last_indexed']}"""
         # Clean up resources
         if hasattr(self, "search_dialog"):
             self.search_dialog.close()
+    
+    def _add_library_context_menu(self):
+        """Add semantic search options to library view context menu"""
+        try:
+            # Get the library view
+            library_view = self.gui.library_view
+            
+            # Create context menu actions
+            self._create_context_menu_actions()
+            
+            # Add our actions to the library view context menu
+            # Calibre plugins can add actions via the plugin manager
+            library_view.add_plugin_context_menu_action(self.index_context_action)
+            library_view.add_plugin_context_menu_action(self.similar_context_action)
+            
+            logger.info("Added semantic search context menu to library view")
+            
+        except Exception as e:
+            logger.error(f"Failed to add context menu: {e}")
+    
+    def _create_context_menu_actions(self):
+        """Create context menu actions"""
+        # Index for Semantic Search action
+        self.index_context_action = QAction("Index for Semantic Search", self.gui)
+        self.index_context_action.setToolTip(
+            "Prepare selected books for semantic search by generating AI embeddings"
+        )
+        self.index_context_action.triggered.connect(self._index_selected_from_context)
+        
+        # Find Similar Books action  
+        self.similar_context_action = QAction("Find Similar Books", self.gui)
+        self.similar_context_action.setToolTip(
+            "Search for books with similar content to the selected book"
+        )
+        self.similar_context_action.triggered.connect(self._find_similar_from_context)
+        
+        # Set icons if available
+        try:
+            index_icon = get_icons('search_24.png')
+            if index_icon and not index_icon.isNull():
+                self.index_context_action.setIcon(index_icon)
+                
+            similar_icon = get_icons('search_32.png') 
+            if similar_icon and not similar_icon.isNull():
+                self.similar_context_action.setIcon(similar_icon)
+        except Exception as e:
+            logger.debug(f"Icons not available: {e}")
+            # Icons are optional
+            pass
+    
+    def _index_selected_from_context(self):
+        """Index selected books from context menu"""
+        # Get selected book IDs
+        rows = self.gui.current_view().selectionModel().selectedRows()
+        if not rows:
+            error_dialog(
+                self.gui,
+                "No Selection",
+                "No books selected. Please select books to index.",
+                show=True,
+            )
+            return
+        
+        book_ids = [self.gui.current_view().model().id(row) for row in rows]
+        
+        # Use existing indexing method
+        self._start_indexing(book_ids)
+    
+    def _find_similar_from_context(self):
+        """Find similar books from context menu"""
+        # Get selected book (single selection for similarity)
+        rows = self.gui.current_view().selectionModel().selectedRows()
+        if not rows:
+            error_dialog(
+                self.gui,
+                "No Selection", 
+                "Please select a book to find similar books.",
+                show=True,
+            )
+            return
+        
+        if len(rows) > 1:
+            error_dialog(
+                self.gui,
+                "Multiple Selection",
+                "Please select only one book to find similar books.\n\n"
+                "Select a single book and try again.",
+                show=True,
+            )
+            return
+        
+        # Get the selected book
+        book_id = self.gui.current_view().model().id(rows[0])
+        
+        try:
+            # Get book metadata for search
+            if hasattr(self.gui, 'current_db') and self.gui.current_db:
+                mi = self.gui.current_db.new_api.get_metadata(book_id)
+                book_title = mi.title
+                
+                # Create search query from book title and authors
+                search_query = book_title
+                if mi.authors:
+                    # Add first author to help with similarity
+                    search_query += f" {mi.authors[0]}"
+                
+                # Open search dialog with pre-filled query
+                self.show_dialog()
+                if hasattr(self, "search_dialog"):
+                    self.search_dialog.set_initial_query(search_query)
+                    self.search_dialog.set_scope_to_exclude_book(book_id)
+            else:
+                error_dialog(
+                    self.gui,
+                    "Database Error",
+                    "Cannot access book information. Please try again.",
+                    show=True,
+                )
+                
+        except Exception as e:
+            logger.error(f"Error finding similar books: {e}")
+            error_dialog(
+                self.gui,
+                "Search Error", 
+                f"An error occurred while preparing similarity search:\n\n{str(e)}",
+                show=True,
+            )
     
 
 

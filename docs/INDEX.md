@@ -13,7 +13,8 @@
 ### **Reference Documentation**
 
 #### 📊 Analysis & Research
-- `analysis/` - *Empty (moved to archive)*
+- `analysis/INDEXING_SEARCH_ANALYSIS.md` - Vector indexing algorithms comparison
+- `analysis/ARCHITECTURE_MODULARITY_ASSESSMENT.md` - System modularity for future enhancements
 
 #### 🔧 Development Resources
 - `development/` - *Empty (development plans archived)*

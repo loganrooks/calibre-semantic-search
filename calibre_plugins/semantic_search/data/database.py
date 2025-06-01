@@ -388,6 +388,11 @@ class SemanticSearchDB:
             conditions.append(f"c.book_id IN ({placeholders})")
             params.extend(filters["book_ids"])
 
+        if "excluded_book_ids" in filters:
+            placeholders = ",".join("?" * len(filters["excluded_book_ids"]))
+            conditions.append(f"c.book_id NOT IN ({placeholders})")
+            params.extend(filters["excluded_book_ids"])
+
         if "author" in filters:
             conditions.append("b.authors LIKE ?")
             params.append(f'%{filters["author"]}%')
@@ -475,6 +480,11 @@ class SemanticSearchDB:
             placeholders = ",".join("?" * len(filters["book_ids"]))
             conditions.append(f"c.book_id IN ({placeholders})")
             params.extend(filters["book_ids"])
+
+        if "excluded_book_ids" in filters:
+            placeholders = ",".join("?" * len(filters["excluded_book_ids"]))
+            conditions.append(f"c.book_id NOT IN ({placeholders})")
+            params.extend(filters["excluded_book_ids"])
 
         where_clause = " AND ".join(conditions) if conditions else "1=1"
 

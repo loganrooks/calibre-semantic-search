@@ -371,6 +371,10 @@ class SemanticSearchDialog(QDialog):
             except:
                 pass
 
+        # Handle excluded book (for similarity search)
+        if hasattr(self, 'excluded_book_id') and self.excluded_book_id:
+            options.excluded_book_ids = [self.excluded_book_id]
+        
         return options
 
     def _initialize_search_engine(self):
@@ -536,6 +540,28 @@ class SemanticSearchDialog(QDialog):
         self.results_list.clear()
         self.current_results = []
         self.status_bar.setText("Ready to search")
+    
+    def set_initial_query(self, query: str):
+        """Set initial search query (used by context menu)"""
+        self.query_input.setText(query)
+        # Optionally trigger search automatically
+        # self.perform_search()
+    
+    def set_scope_to_exclude_book(self, book_id: int):
+        """Set search scope to exclude a specific book (for similarity search)"""
+        # Store the excluded book ID for use in search options
+        self.excluded_book_id = book_id
+        
+        # Update status to show we're excluding this book
+        if hasattr(self, 'status_bar'):
+            try:
+                # Get book title for display
+                if hasattr(self.gui, 'current_db') and self.gui.current_db:
+                    mi = self.gui.current_db.new_api.get_metadata(book_id)
+                    book_title = mi.title[:50] + "..." if len(mi.title) > 50 else mi.title
+                    self.status_bar.setText(f"Finding books similar to: {book_title}")
+            except:
+                self.status_bar.setText(f"Finding books similar to selected book")
 
     def library_changed(self):
         """Handle library change"""

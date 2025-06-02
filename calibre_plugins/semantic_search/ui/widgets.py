@@ -409,7 +409,7 @@ class ResultCard(QFrame):
     """Card widget for displaying search results"""
     
     # Signals
-    viewInBook = pyqtSignal(int)  # book_id
+    viewInBook = pyqtSignal(int, int)  # book_id, chunk_id
     findSimilar = pyqtSignal(int)  # chunk_id
     copyCitation = pyqtSignal(dict)  # result_data
     
@@ -467,7 +467,8 @@ class ResultCard(QFrame):
         
         view_btn = QPushButton("View in Book")
         view_btn.clicked.connect(lambda: self.viewInBook.emit(
-            self.result_data.get('book_id', 0)
+            self.result_data.get('book_id', 0),
+            self.result_data.get('chunk_id', 0)
         ))
         
         similar_btn = QPushButton("Find Similar")

@@ -801,6 +801,52 @@ calibre-debug -c "from PyQt5.Qt import QSlider; print(dir(QSlider.TickPosition))
 
 **VIOLATION CONSEQUENCES**: Any assumption-based error must be documented in DEVELOPMENT_FEEDBACK.md as CRITICAL_VIOLATION.
 
+### 🎯 CRITICAL LESSON: Implementation vs Integration (2025-06-02)
+
+**MAJOR DISCOVERY**: There is a critical difference between implementing components and integrating them into the live interface.
+
+#### What Happened
+During GREEN phase TDD implementation, all 5 major v1.0 features were successfully built and tested:
+- ✅ Enhanced SearchEngine with metadata enrichment 
+- ✅ Dynamic ThemeManager with QPalette integration
+- ✅ Complete IndexManagerDialog with CRUD operations
+- ✅ ViewerIntegration with chunk navigation
+- ✅ Provider plugin system with extensible architecture
+
+However, **none of these components were connected to the live Calibre interface** that users actually see.
+
+#### The Integration Gap
+- **Components exist and work** → Tested with 275+ unit tests
+- **Interface still shows placeholders** → Users see "search not implemented"
+- **All functionality built** → But hidden from users
+- **One session away from v1.0** → Just need to wire components together
+
+#### Critical Wiring Points
+1. **search_dialog.py:224** - Replace placeholder with SearchEngine.search()
+2. **search_dialog.py:_setup_ui()** - Apply ThemeManager stylesheet  
+3. **interface.py:genesis()** - Add IndexManagerDialog menu item
+4. **interface.py:_inject_viewer_menu()** - Call ViewerIntegration methods
+5. **embedding_service.py** - Replace hard-coded providers with plugin system
+
+#### Prevention Rules
+1. **ALWAYS test in live Calibre** after implementing components
+2. **VERIFY user-visible functionality** not just unit tests
+3. **CHECK interface.py integration** for all new components
+4. **MANUALLY test** the actual plugin workflow in Calibre
+5. **DOCUMENT integration points** clearly in component docstrings
+
+#### Integration Verification Commands  
+```bash
+# Test live functionality in Calibre
+calibre-debug -g  # Launch with plugin loaded
+# Manual: Open search dialog → verify search works
+# Manual: Check if themes apply correctly
+# Manual: Look for index manager in menus
+# Manual: Test viewer context menu integration
+```
+
+**LESSON**: Implementation success ≠ User-facing functionality. Always verify integration.
+
 ### 📚 Calibre Plugin Knowledge Base
 
 **IMPORTANT**: We maintain a comprehensive knowledge base for Calibre-specific issues and solutions.

@@ -79,7 +79,16 @@ class EmbeddingRepository(IEmbeddingRepository):
         Args:
             db_path: Path to database file
         """
+        logger.info(f"EmbeddingRepository.__init__ called with path: {db_path}")
+        logger.info(f"Path type: {type(db_path)}")
+        
+        # Ensure we have a Path object
+        if isinstance(db_path, str):
+            db_path = Path(db_path)
+            logger.info(f"Converted string path to Path object: {db_path}")
+            
         self.db = SemanticSearchDB(db_path)
+        logger.info("SemanticSearchDB created successfully")
 
     async def store_embedding(
         self, book_id: int, chunk: Chunk, embedding: List[float]
@@ -168,6 +177,308 @@ class EmbeddingRepository(IEmbeddingRepository):
     ) -> List[Dict[str, Any]]:
         """Get indexing status"""
         return self.db.get_indexing_status(book_id)
+
+    def create_index(
+        self, 
+        book_id: int, 
+        provider: str, 
+        model_name: str = "default", 
+        dimensions: int = 768, 
+        chunk_size: int = 512, 
+        chunk_overlap: int = 0,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> int:
+        """Create a new index for a book"""
+        metadata_json = json.dumps(metadata or {})
+        
+        with self.db.transaction() as conn:
+            # Ensure book exists before creating index (foreign key constraint)
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO books (book_id, title, authors, tags)
+                VALUES (?, ?, ?, ?)
+                """,
+                (book_id, "Unknown", "[]", "[]")
+            )
+            
+            # Create the index
+            cursor = conn.execute(
+                """
+                INSERT INTO indexes (
+                    book_id, provider, model_name, dimensions, 
+                    chunk_size, chunk_overlap, metadata
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (book_id, provider, model_name, dimensions, chunk_size, chunk_overlap, metadata_json)
+            )
+            return cursor.lastrowid
+
+    def get_indexes_for_book(self, book_id: int) -> List[Dict[str, Any]]:
+        """Get all indexes for a book"""
+        query = """
+            SELECT 
+                index_id, book_id, provider, model_name, dimensions,
+                chunk_size, chunk_overlap, total_chunks, created_at, updated_at, metadata
+            FROM indexes 
+            WHERE book_id = ?
+            ORDER BY created_at DESC
+        """
+        
+        rows = self.db._conn.execute(query, (book_id,)).fetchall()
+        
+        indexes = []
+        for row in rows:
+            index_dict = {
+                'index_id': row[0],
+                'book_id': row[1], 
+                'provider': row[2],
+                'model_name': row[3],
+                'dimensions': row[4],
+                'chunk_size': row[5],
+                'chunk_overlap': row[6],
+                'total_chunks': row[7],
+                'created_at': row[8],
+                'updated_at': row[9],
+                'metadata': json.loads(row[10]) if row[10] else {}
+            }
+            indexes.append(index_dict)
+        
+        return indexes
+
+    def store_embedding_for_index(self, index_id: int, chunk: Chunk, embedding: List[float]) -> int:
+        """Store chunk and embedding for a specific index"""
+        # First store the chunk with the index_id
+        chunk_query = """
+            INSERT INTO chunks (
+                book_id, index_id, chunk_index, chunk_text, 
+                start_pos, end_pos, metadata
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """
+        
+        metadata_json = json.dumps(chunk.metadata or {})
+        
+        with self.db.transaction() as conn:
+            # Store chunk
+            cursor = conn.execute(
+                chunk_query,
+                (chunk.book_id, index_id, chunk.index, chunk.text, 
+                 chunk.start_pos, chunk.end_pos, metadata_json)
+            )
+            chunk_id = cursor.lastrowid
+            
+            # Store embedding
+            embedding_blob = VectorOps.pack_embedding(embedding)
+            conn.execute(
+                """
+                INSERT INTO embeddings (chunk_id, index_id, embedding)
+                VALUES (?, ?, ?)
+                """,
+                (chunk_id, index_id, embedding_blob)
+            )
+            
+            return chunk_id
+
+    def get_chunk_with_index(self, chunk_id: int) -> Optional[Dict[str, Any]]:
+        """Get chunk information including index association"""
+        query = """
+            SELECT 
+                c.chunk_id, c.book_id, c.index_id, c.chunk_index, c.chunk_text,
+                c.start_pos, c.end_pos, c.metadata,
+                i.provider, i.model_name, i.dimensions
+            FROM chunks c
+            JOIN indexes i ON c.index_id = i.index_id
+            WHERE c.chunk_id = ?
+        """
+        
+        row = self.db._conn.execute(query, (chunk_id,)).fetchone()
+        if not row:
+            return None
+            
+        return {
+            'chunk_id': row[0],
+            'book_id': row[1],
+            'index_id': row[2],
+            'chunk_index': row[3],
+            'chunk_text': row[4],
+            'start_pos': row[5],
+            'end_pos': row[6],
+            'metadata': json.loads(row[7]) if row[7] else {},
+            'provider': row[8],
+            'model_name': row[9],
+            'dimensions': row[10]
+        }
+
+    def search_similar_in_index(self, index_id: int, query_embedding: List[float], limit: int = 10) -> List[Dict[str, Any]]:
+        """Search for similar embeddings within a specific index"""
+        query = """
+            SELECT 
+                c.chunk_id, c.book_id, c.index_id, c.chunk_index, c.chunk_text,
+                c.start_pos, c.end_pos, c.metadata,
+                e.embedding
+            FROM chunks c
+            JOIN embeddings e ON c.chunk_id = e.chunk_id
+            WHERE c.index_id = ?
+            LIMIT ?
+        """
+        
+        rows = self.db._conn.execute(query, (index_id, limit)).fetchall()
+        
+        results = []
+        for row in rows:
+            # Unpack embedding and calculate similarity
+            embedding_blob = row[8]
+            stored_embedding = VectorOps.unpack_embedding(embedding_blob, len(query_embedding))
+            similarity = VectorOps.cosine_similarity(query_embedding, stored_embedding)
+            
+            result = {
+                'chunk_id': row[0],
+                'book_id': row[1],
+                'index_id': row[2],
+                'chunk_index': row[3],
+                'chunk_text': row[4],
+                'start_pos': row[5],
+                'end_pos': row[6],
+                'metadata': json.loads(row[7]) if row[7] else {},
+                'similarity': similarity
+            }
+            results.append(result)
+        
+        # Sort by similarity score (highest first)
+        results.sort(key=lambda x: x['similarity'], reverse=True)
+        
+        return results
+
+    def delete_index(self, index_id: int) -> bool:
+        """Delete a specific index and all its associated chunks and embeddings"""
+        with self.db.transaction() as conn:
+            # Delete embeddings first (foreign key constraint)
+            conn.execute("DELETE FROM embeddings WHERE index_id = ?", (index_id,))
+            
+            # Delete chunks associated with this index
+            conn.execute("DELETE FROM chunks WHERE index_id = ?", (index_id,))
+            
+            # Delete the index itself
+            cursor = conn.execute("DELETE FROM indexes WHERE index_id = ?", (index_id,))
+            
+            # Return True if index was deleted, False if it didn't exist
+            return cursor.rowcount > 0
+
+    def get_books_with_indexes(self) -> List[int]:
+        """Get list of book IDs that have indexes"""
+        try:
+            # First try indexes table
+            query = """
+                SELECT DISTINCT book_id 
+                FROM indexes 
+                ORDER BY book_id
+            """
+            rows = self.db._conn.execute(query).fetchall()
+            book_ids = [row[0] for row in rows]
+            
+            # If no results from indexes table, try books table
+            if not book_ids:
+                query = """
+                    SELECT DISTINCT book_id 
+                    FROM books 
+                    ORDER BY book_id
+                """
+                rows = self.db._conn.execute(query).fetchall()
+                book_ids = [row[0] for row in rows]
+            
+            return book_ids
+            
+        except Exception as e:
+            logger.error(f"Error getting books with indexes: {e}")
+            return []
+
+    def get_index_statistics(self, index_id: int) -> Optional[Dict[str, Any]]:
+        """Get statistics for a specific index"""
+        # Get basic index info
+        index_query = """
+            SELECT 
+                index_id, book_id, provider, model_name, dimensions,
+                chunk_size, chunk_overlap, created_at, updated_at, metadata
+            FROM indexes 
+            WHERE index_id = ?
+        """
+        
+        index_row = self.db._conn.execute(index_query, (index_id,)).fetchone()
+        if not index_row:
+            return None
+        
+        # Count chunks for this index
+        chunk_count_query = "SELECT COUNT(*) FROM chunks WHERE index_id = ?"
+        chunk_count = self.db._conn.execute(chunk_count_query, (index_id,)).fetchone()[0]
+        
+        # Calculate storage size (approximate)
+        storage_query = """
+            SELECT SUM(LENGTH(c.chunk_text) + LENGTH(e.embedding))
+            FROM chunks c
+            JOIN embeddings e ON c.chunk_id = e.chunk_id
+            WHERE c.index_id = ?
+        """
+        storage_size = self.db._conn.execute(storage_query, (index_id,)).fetchone()[0] or 0
+        
+        return {
+            'index_id': index_row[0],
+            'book_id': index_row[1],
+            'provider': index_row[2],
+            'model_name': index_row[3],
+            'dimensions': index_row[4],
+            'chunk_size': index_row[5],
+            'chunk_overlap': index_row[6],
+            'created_at': index_row[7],
+            'updated_at': index_row[8],
+            'metadata': json.loads(index_row[9]) if index_row[9] else {},
+            'total_chunks': chunk_count,
+            'storage_size': storage_size
+        }
+
+    def get_indexes_by_provider(self, provider: str) -> List[Dict[str, Any]]:
+        """Get all indexes for a specific provider"""
+        query = """
+            SELECT 
+                index_id, book_id, provider, model_name, dimensions,
+                chunk_size, chunk_overlap, total_chunks, created_at, updated_at, metadata
+            FROM indexes 
+            WHERE provider = ?
+            ORDER BY created_at DESC
+        """
+        
+        rows = self.db._conn.execute(query, (provider,)).fetchall()
+        
+        indexes = []
+        for row in rows:
+            index_dict = {
+                'index_id': row[0],
+                'book_id': row[1], 
+                'provider': row[2],
+                'model_name': row[3],
+                'dimensions': row[4],
+                'chunk_size': row[5],
+                'chunk_overlap': row[6],
+                'total_chunks': row[7],
+                'created_at': row[8],
+                'updated_at': row[9],
+                'metadata': json.loads(row[10]) if row[10] else {}
+            }
+            indexes.append(index_dict)
+        
+        return indexes
+
+    def search_across_indexes(self, indexes: List[Dict[str, Any]], query_embedding: List[float], limit: int = 10) -> List[Dict[str, Any]]:
+        """Search for similar embeddings across multiple indexes"""
+        all_results = []
+        
+        for index_info in indexes:
+            index_id = index_info['index_id']
+            # Get results from this index
+            index_results = self.search_similar_in_index(index_id, query_embedding, limit)
+            all_results.extend(index_results)
+        
+        # Sort all results by similarity and limit
+        all_results.sort(key=lambda x: x['similarity'], reverse=True)
+        return all_results[:limit]
 
 
 class CalibreRepository(ICalibreRepository):

@@ -78,16 +78,19 @@ class SearchOptions:
 class SearchEngine:
     """Main search engine for semantic search"""
 
-    def __init__(self, repository, embedding_service):
+    def __init__(self, repository, embedding_service, calibre_repository=None):
         """
         Initialize search engine
 
         Args:
             repository: Data repository for embeddings
             embedding_service: Service for generating embeddings
+            calibre_repository: Calibre repository for book metadata
         """
         self.repository = repository
         self.embedding_service = embedding_service
+        self.calibre_repository = calibre_repository
+        self._metadata_cache = {}  # Cache for book metadata
 
     async def search(self, query: str, options: SearchOptions, timeout: Optional[float] = 30.0) -> List[SearchResult]:
         """
@@ -209,12 +212,16 @@ class SearchEngine:
             if not asyncio.current_task() or asyncio.current_task().cancelled():
                 raise asyncio.CancelledError()
                 
+            # Enrich with metadata from Calibre
+            book_id = result.get("book_id", 0)
+            enriched_result = self._enrich_with_metadata(book_id, result)
+            
             # Convert to SearchResult
             search_result = SearchResult(
                 chunk_id=result.get("chunk_id", 0),
-                book_id=result.get("book_id", 0),
-                book_title=result.get("title", "Unknown"),
-                authors=result.get("authors", []),
+                book_id=book_id,
+                book_title=enriched_result.get("title", "Unknown"),
+                authors=enriched_result.get("authors", ["Unknown Author"]),
                 chunk_text=result.get("chunk_text", ""),
                 chunk_index=result.get("chunk_index", 0),
                 similarity_score=result.get("similarity", 0.0),
@@ -272,11 +279,15 @@ class SearchEngine:
                 logger.warning(f"Skipping result with binary data for book {row['book_id']}, chunk {row['chunk_id']}")
                 continue
             
+            # Enrich with metadata from Calibre
+            book_id = row["book_id"]
+            enriched_row = self._enrich_with_metadata(book_id, row)
+            
             result = SearchResult(
                 chunk_id=row["chunk_id"],
-                book_id=row["book_id"],
-                book_title=row.get("title", "Unknown"),
-                authors=row.get("authors", []),
+                book_id=book_id,
+                book_title=enriched_row.get("title", "Unknown"),
+                authors=enriched_row.get("authors", ["Unknown Author"]),
                 chunk_text=chunk_text,
                 chunk_index=row.get("chunk_index", 0),
                 similarity_score=row["similarity"],
@@ -560,3 +571,51 @@ class SearchEngine:
         explanation += f"Maximum results: {options.limit}"
 
         return explanation
+
+    def _enrich_with_metadata(self, book_id: int, raw_result: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Enrich raw search result with metadata from Calibre repository
+        
+        Args:
+            book_id: Book ID to fetch metadata for
+            raw_result: Raw search result from embedding repository
+            
+        Returns:
+            Enriched result with title, authors, and other metadata
+        """
+        # Start with the raw result
+        enriched = raw_result.copy()
+        
+        # If we have a calibre repository, fetch metadata
+        if self.calibre_repository:
+            # Check cache first
+            if book_id in self._metadata_cache:
+                metadata = self._metadata_cache[book_id]
+            else:
+                try:
+                    metadata = self.calibre_repository.get_book_metadata(book_id)
+                    self._metadata_cache[book_id] = metadata  # Cache the result
+                except Exception as e:
+                    logger.warning(f"Failed to fetch metadata for book {book_id}: {e}")
+                    metadata = None
+                    self._metadata_cache[book_id] = None  # Cache the failure
+            
+            if metadata:
+                enriched['title'] = metadata.get('title', 'Unknown')
+                enriched['authors'] = metadata.get('authors', ['Unknown Author'])
+                # Ensure authors is always a list
+                if isinstance(enriched['authors'], str):
+                    enriched['authors'] = [enriched['authors']]
+                elif not enriched['authors']:
+                    enriched['authors'] = ['Unknown Author']
+            else:
+                enriched['title'] = f'Book {book_id}'
+                enriched['authors'] = ['Unknown Author']
+        else:
+            # No calibre repository available, use defaults
+            if 'title' not in enriched:
+                enriched['title'] = f'Book {book_id}'
+            if 'authors' not in enriched:
+                enriched['authors'] = ['Unknown Author']
+                
+        return enriched

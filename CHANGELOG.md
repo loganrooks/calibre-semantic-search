@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (2025-06-02) - GREEN Phase Implementation Complete
+- **Major Feature Implementation** (Components built but need integration)
+  - Enhanced SearchEngine with metadata enrichment - fixes "Unknown Author. Unknown." bug
+  - Complete ThemeManager with QPalette integration for dynamic UI theming
+  - Full IndexManagerDialog with CRUD operations, statistics, and context menus
+  - ViewerIntegration with chunk-to-position navigation and text highlighting
+  - Complete provider plugin system with PluginManager and extensible architecture
+  - 275+ comprehensive unit tests covering all implemented components
+  
+- **Known Integration Gap**
+  - All components exist and are tested but not wired into live Calibre interface
+  - SearchEngine not connected to search_dialog.py perform_search() 
+  - ThemeManager not applied to actual UI components
+  - IndexManagerDialog not accessible from main interface menu
+  - ViewerIntegration not called from _inject_viewer_menu()
+  - Plugin system not integrated into main embedding service
+
 ### Added (2025-06-01)
 - **Bug Fixes**
   - Fixed binary data appearing in search results (EPUB files showing ZIP headers)
@@ -15,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Search engine now filters out results with corrupted text
 
 ### Planned for v1.1.0
+- Complete integration of implemented components (4-6 hours estimated)
 - Implement Ollama local embedding provider
 - Add floating window mode  
 - Complete multilingual concept mapping

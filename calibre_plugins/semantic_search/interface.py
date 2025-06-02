@@ -533,6 +533,7 @@ Last Indexed: {status.get('last_indexed', 'Never')}"""
 
     def _initialize_services(self):
         """Initialize services on plugin startup"""
+        logger.info("=== _initialize_services() called ===")
         try:
             import os
             from calibre_plugins.semantic_search.core.embedding_service import create_embedding_service
@@ -545,48 +546,99 @@ Last Indexed: {status.get('last_indexed', 'Never')}"""
             
             # Set up database path
             library_path = self.gui.library_path
+            logger.info(f"Library path: {library_path}")
             db_dir = os.path.join(library_path, 'semantic_search')
             os.makedirs(db_dir, exist_ok=True)
             self.db_path = os.path.join(db_dir, 'embeddings.db')
+            logger.info(f"Database path will be: {self.db_path}")
+            logger.info(f"Database file exists: {os.path.exists(self.db_path)}")
             
-            # Initialize database if needed
-            if not os.path.exists(self.db_path):
-                # Database will be initialized on first use
-                pass
+            # Initialize database and repositories
+            logger.info(f"Initializing database at: {self.db_path}")
+            try:
+                self.embedding_repo = EmbeddingRepository(self.db_path)
+                logger.info("EmbeddingRepository created successfully")
+            except Exception as e:
+                logger.error(f"Failed to create EmbeddingRepository: {e}")
+                self.embedding_repo = None
             
-            # Create repositories
-            self.embedding_repo = EmbeddingRepository(self.db_path)
+            # Try multiple ways to get Calibre database
+            logger.info("Checking CalibreRepository availability...")
+            self.calibre_repo = None
             
-            # Check if current_db is available
+            # Method 1: current_db.new_api (preferred)
             if hasattr(self.gui, 'current_db') and self.gui.current_db:
+                logger.info("current_db is available")
                 if hasattr(self.gui.current_db, 'new_api'):
+                    logger.info("current_db has new_api, creating CalibreRepository")
                     self.calibre_repo = CalibreRepository(self.gui.current_db.new_api)
+                    logger.info("CalibreRepository created successfully")
                 else:
-                    # Old Calibre version or DB not ready
-                    logger.warning("current_db doesn't have new_api, skipping CalibreRepository")
-                    self.calibre_repo = None
-            else:
-                logger.warning("current_db not available yet, skipping CalibreRepository") 
-                self.calibre_repo = None
+                    logger.warning("current_db doesn't have new_api")
+            
+            # Method 2: library_view.model().db (fallback)
+            if not self.calibre_repo and hasattr(self.gui, 'library_view'):
+                try:
+                    logger.info("Trying library_view.model().db")
+                    model = self.gui.library_view.model()
+                    if model and hasattr(model, 'db'):
+                        if hasattr(model.db, 'new_api'):
+                            logger.info("Creating CalibreRepository with library_view.model().db.new_api")
+                            self.calibre_repo = CalibreRepository(model.db.new_api)
+                            logger.info("CalibreRepository created successfully via library_view")
+                        else:
+                            logger.warning("library_view.model().db doesn't have new_api")
+                except Exception as e:
+                    logger.warning(f"Failed to get db from library_view: {e}")
+            
+            # Method 3: Direct db access (last resort)
+            if not self.calibre_repo and hasattr(self.gui, 'db'):
+                logger.info("Trying gui.db")
+                if hasattr(self.gui.db, 'new_api'):
+                    logger.info("Creating CalibreRepository with gui.db.new_api")
+                    self.calibre_repo = CalibreRepository(self.gui.db.new_api)
+                    logger.info("CalibreRepository created successfully via gui.db")
+                else:
+                    logger.warning("gui.db doesn't have new_api")
+                    
+            if not self.calibre_repo:
+                logger.warning("Could not create CalibreRepository - will retry later")
             
             # Create services
+            logger.info("Creating embedding and text processing services...")
             config_dict = self.config.as_dict()
             self.embedding_service = create_embedding_service(config_dict)
             self.text_processor = TextProcessor()
+            logger.info("Embedding and text processing services created")
             
-            # Create indexing service only if we have calibre_repo
-            if self.calibre_repo:
+            # Create indexing service only if we have both repositories
+            logger.info("Attempting to create IndexingService...")
+            if self.calibre_repo and self.embedding_repo:
+                logger.info("Both repositories available, creating IndexingService")
                 self.indexing_service = IndexingService(
                     text_processor=self.text_processor,
                     embedding_service=self.embedding_service,
                     embedding_repo=self.embedding_repo,
                     calibre_repo=self.calibre_repo
                 )
+                logger.info("IndexingService created successfully")
             else:
-                logger.warning("Cannot create IndexingService without CalibreRepository")
+                logger.warning(f"Cannot create IndexingService - calibre_repo: {self.calibre_repo is not None}, embedding_repo: {self.embedding_repo is not None}")
                 self.indexing_service = None
             
-            logger.info("Successfully initialized semantic search services")
+            # Summary of what was created
+            logger.info("=== SERVICE INITIALIZATION SUMMARY ===")
+            logger.info(f"Database path: {self.db_path}")
+            logger.info(f"EmbeddingRepository: {'✓' if self.embedding_repo else '✗'}")
+            logger.info(f"CalibreRepository: {'✓' if self.calibre_repo else '✗'}")
+            logger.info(f"EmbeddingService: {'✓' if self.embedding_service else '✗'}")
+            logger.info(f"IndexingService: {'✓' if self.indexing_service else '✗'}")
+            logger.info("=== END SUMMARY ===")
+            
+            if self.indexing_service:
+                logger.info("All services initialized successfully")
+            else:
+                logger.warning("Services partially initialized - indexing may not work")
             
         except Exception as e:
             logger.error(f"Failed to initialize services: {e}")
@@ -598,14 +650,22 @@ Last Indexed: {status.get('last_indexed', 'Never')}"""
     
     def get_embedding_service(self):
         """Get the embedding service, creating if needed"""
+        logger.info("get_embedding_service() called")
         if not hasattr(self, 'embedding_service') or not self.embedding_service:
+            logger.info("embedding_service not available, calling _initialize_services()")
             self._initialize_services()
+        else:
+            logger.info("embedding_service already available")
         return self.embedding_service if hasattr(self, 'embedding_service') else None
     
     def get_indexing_service(self):
         """Get the indexing service, creating if needed"""
+        logger.info("get_indexing_service() called")
         if not hasattr(self, 'indexing_service') or not self.indexing_service:
+            logger.info("indexing_service not available, calling _initialize_services()")
             self._initialize_services()
+        else:
+            logger.info("indexing_service already available")
         return self.indexing_service if hasattr(self, 'indexing_service') else None
 
     def library_changed(self, db):
@@ -618,6 +678,20 @@ Last Indexed: {status.get('last_indexed', 'Never')}"""
         
         # Re-initialize services for new library
         self._initialize_services()
+    
+    def debug_database_state(self):
+        """Debug function to check database state"""
+        try:
+            if hasattr(self, 'embedding_repo') and self.embedding_repo:
+                status = self.embedding_repo.db.verify_schema()
+                logger.info(f"Database status: {status}")
+                return status
+            else:
+                logger.warning("No embedding repository available for debugging")
+                return {"error": "No embedding repository"}
+        except Exception as e:
+            logger.error(f"Error checking database state: {e}")
+            return {"error": str(e)}
 
     
     def location_selected(self, loc):

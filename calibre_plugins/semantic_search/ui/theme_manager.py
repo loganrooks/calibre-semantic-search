@@ -8,6 +8,10 @@ from PyQt5.Qt import QApplication, QPalette
 class ThemeManager:
     """Manages theme-aware styling for the plugin"""
     
+    def __init__(self):
+        """Initialize theme manager"""
+        self._cache = {}  # Cache for generated styles
+    
     @staticmethod
     def get_palette() -> QPalette:
         """Get the current application palette"""
@@ -109,25 +113,31 @@ class ThemeManager:
         """Get style for description labels"""
         return f"QLabel {{ color: {ThemeManager.get_muted_text_color()}; font-size: 10pt; }}"
     
-    @staticmethod
-    def get_result_card_style() -> str:
+    def get_result_card_style(self) -> str:
         """Get style for result cards"""
-        bg_color = ThemeManager.get_base_bg_color()
-        border_color = ThemeManager.get_border_color()
-        hover_bg = ThemeManager.get_alternate_bg_color()
-        hover_border = ThemeManager.get_hover_border_color()
+        bg_color = self.get_base_bg_color()
+        text_color = self.get_text_color()
+        border_color = self.get_border_color()
+        hover_bg = self.get_alternate_bg_color()
+        hover_border = self.get_hover_border_color()
         
-        return f"""
-            ResultCard {{
-                background-color: {bg_color};
-                border: 1px solid {border_color};
-                border-radius: 6px;
-            }}
-            ResultCard:hover {{
-                border-color: {hover_border};
-                background-color: {hover_bg};
-            }}
+        style = f"""
+            background-color: {bg_color};
+            color: {text_color};
+            border: 1px solid {border_color};
+            border-radius: 6px;
+            padding: 12px;
         """
+        
+        # Add hover state
+        style += f"""
+ResultCard:hover {{
+    border-color: {hover_border};
+    background-color: {hover_bg};
+}}
+        """
+        
+        return style.strip()
     
     @staticmethod
     def get_content_preview_style() -> str:
@@ -171,3 +181,139 @@ class ThemeManager:
                 font-size: 12pt;
             }}
         """
+    
+    def get_style(self, widget_type: str) -> str:
+        """Get style for specific widget type"""
+        if widget_type in self._cache:
+            return self._cache[widget_type]
+            
+        style = ""
+        if widget_type == 'result_card':
+            style = self.get_result_card_style()
+        elif widget_type == 'search_input':
+            style = self._get_search_input_style()
+        elif widget_type == 'button':
+            style = self._get_button_style()
+        elif widget_type == 'list_item':
+            style = self._get_list_item_style()
+        elif widget_type == 'scroll_area':
+            style = self._get_scroll_area_style()
+        else:
+            style = ""
+            
+        self._cache[widget_type] = style
+        return style
+    
+    def _get_search_input_style(self) -> str:
+        """Get style for search input"""
+        bg_color = self.get_base_bg_color()
+        text_color = self.get_text_color()
+        border_color = self.get_border_color()
+        
+        return f"""
+            QTextEdit {{
+                background-color: {bg_color};
+                color: {text_color};
+                border: 1px solid {border_color};
+                border-radius: 4px;
+                padding: 8px;
+            }}
+        """
+    
+    def _get_button_style(self) -> str:
+        """Get style for buttons"""
+        bg_color = self.get_window_bg_color()
+        text_color = self.get_text_color()
+        border_color = self.get_border_color()
+        hover_bg = self.get_highlight_bg_color()
+        hover_text = self.get_highlight_text_color()
+        
+        return f"""
+            QPushButton {{
+                background-color: {bg_color};
+                color: {text_color};
+                border: 1px solid {border_color};
+                border-radius: 4px;
+                padding: 6px 12px;
+            }}
+            QPushButton:hover {{
+                background-color: {hover_bg};
+                color: {hover_text};
+            }}
+            QPushButton:pressed {{
+                background-color: {border_color};
+            }}
+        """
+    
+    def _get_list_item_style(self) -> str:
+        """Get style for list items"""
+        bg_color = self.get_base_bg_color()
+        text_color = self.get_text_color()
+        selected_bg = self.get_highlight_bg_color()
+        selected_text = self.get_highlight_text_color()
+        
+        return f"""
+            QListWidget {{
+                background-color: {bg_color};
+                color: {text_color};
+                border: 1px solid {self.get_border_color()};
+            }}
+            QListWidget::item:selected {{
+                background-color: {selected_bg};
+                color: {selected_text};
+            }}
+        """
+    
+    def _get_scroll_area_style(self) -> str:
+        """Get style for scroll areas"""
+        bg_color = self.get_base_bg_color()
+        
+        return f"""
+            QScrollArea {{
+                background-color: {bg_color};
+                border: none;
+            }}
+        """
+    
+    def generate_complete_stylesheet(self) -> str:
+        """Generate complete stylesheet for all UI components"""
+        components = []
+        
+        # Result cards
+        components.append(f".ResultCard {{{self.get_result_card_style()}}}")
+        
+        # Search input
+        components.append(f".SearchInput {{{self._get_search_input_style()}}}")
+        
+        # Buttons
+        components.append(self._get_button_style())
+        
+        # Lists
+        components.append(self._get_list_item_style())
+        
+        # Scroll areas
+        components.append(self._get_scroll_area_style())
+        
+        # Status labels
+        components.append(f"QLabel.status {{{self.get_status_bar_style()}}}")
+        
+        # Ensure no problematic hard-coded colors
+        stylesheet = "\n".join(components)
+        
+        # Remove any hard-coded problematic colors
+        problematic_colors = ['#f0f0f0', 'lightgray', 'lightgrey', '#d3d3d3']
+        for color in problematic_colors:
+            stylesheet = stylesheet.replace(color, self.get_alternate_bg_color())
+            
+        return stylesheet
+    
+    def detect_theme_type(self) -> str:
+        """Detect current theme type"""
+        if self.is_dark_theme():
+            return 'dark'
+        else:
+            return 'light'
+    
+    def refresh_theme(self):
+        """Refresh theme cache"""
+        self._cache.clear()

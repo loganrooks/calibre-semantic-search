@@ -530,44 +530,67 @@ def create_embedding_service(config: Dict[str, Any]) -> EmbeddingService:
     """Factory function to create embedding service from config"""
     providers = []
 
+    # Check if litellm is available first
+    try:
+        import litellm
+        litellm_available = True
+        logger.info("LiteLLM is available")
+    except ImportError:
+        litellm_available = False
+        logger.warning("LiteLLM not available, using MockProvider only")
+
     # Get provider configuration
     provider_name = config.get("embedding_provider", "mock")
     api_keys = config.get("api_keys", {})
 
-    # Create primary provider
-    if provider_name == "vertex_ai":
-        provider = VertexAIProvider(
-            project_id=api_keys.get("vertex_ai_project"),
-            model=config.get("embedding_model", "text-embedding-preview-0815"),
-        )
-        providers.append(provider)
+    # Only create real providers if litellm is available
+    if litellm_available:
+        # Create primary provider
+        if provider_name == "vertex_ai":
+            try:
+                provider = VertexAIProvider(
+                    project_id=api_keys.get("vertex_ai_project"),
+                    model=config.get("embedding_model", "text-embedding-preview-0815"),
+                )
+                providers.append(provider)
+            except Exception as e:
+                logger.error(f"Failed to create VertexAI provider: {e}")
 
-    elif provider_name == "openai":
-        if api_key := api_keys.get("openai"):
-            provider = OpenAIProvider(
-                api_key=api_key,
-                model=config.get("embedding_model", "text-embedding-3-small"),
-            )
-            providers.append(provider)
+        elif provider_name == "openai":
+            if api_key := api_keys.get("openai"):
+                try:
+                    provider = OpenAIProvider(
+                        api_key=api_key,
+                        model=config.get("embedding_model", "text-embedding-3-small"),
+                    )
+                    providers.append(provider)
+                except Exception as e:
+                    logger.error(f"Failed to create OpenAI provider: {e}")
 
-    elif provider_name == "azure_openai":
-        if api_key := api_keys.get("azure_openai"):
-            provider = AzureOpenAIProvider(
-                api_key=api_key,
-                deployment=config.get("azure_deployment", "text-embedding-ada-002"),
-                api_base=config.get("azure_api_base", ""),
-                api_version=config.get("azure_api_version", "2024-02-01"),
-                model=config.get("embedding_model"),
-            )
-            providers.append(provider)
+        elif provider_name == "azure_openai":
+            if api_key := api_keys.get("azure_openai"):
+                try:
+                    provider = AzureOpenAIProvider(
+                        api_key=api_key,
+                        deployment=config.get("azure_deployment", "text-embedding-ada-002"),
+                        api_base=config.get("azure_api_base", ""),
+                        api_version=config.get("azure_api_version", "2024-02-01"),
+                        model=config.get("embedding_model"),
+                    )
+                    providers.append(provider)
+                except Exception as e:
+                    logger.error(f"Failed to create Azure OpenAI provider: {e}")
 
-    elif provider_name == "cohere":
-        if api_key := api_keys.get("cohere"):
-            provider = CohereProvider(
-                api_key=api_key,
-                model=config.get("embedding_model", "embed-english-v3.0"),
-            )
-            providers.append(provider)
+        elif provider_name == "cohere":
+            if api_key := api_keys.get("cohere"):
+                try:
+                    provider = CohereProvider(
+                        api_key=api_key,
+                        model=config.get("embedding_model", "embed-english-v3.0"),
+                    )
+                    providers.append(provider)
+                except Exception as e:
+                    logger.error(f"Failed to create Cohere provider: {e}")
 
     # Add fallback providers
     # Always add mock as final fallback for development

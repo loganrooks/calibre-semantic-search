@@ -31,14 +31,25 @@ class SemanticSearchDB:
         Args:
             db_path: Path to database file
         """
+        logger.info(f"SemanticSearchDB.__init__ called with path: {db_path}")
         self.db_path = Path(db_path)
+        logger.info(f"Resolved database path: {self.db_path}")
+        logger.info(f"Database file exists: {self.db_path.exists()}")
+        
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Created parent directory: {self.db_path.parent}")
 
         # Thread-local storage for connections
         self._local = threading.local()
 
         # Initialize database
-        self._init_database()
+        logger.info("About to call _init_database()")
+        try:
+            self._init_database()
+            logger.info("_init_database() completed successfully")
+        except Exception as e:
+            logger.error(f"_init_database() failed: {e}")
+            raise
 
     @property
     def _conn(self) -> sqlite3.Connection:
@@ -102,14 +113,23 @@ class SemanticSearchDB:
 
     def _init_database(self):
         """Initialize database schema"""
-        with self.transaction() as conn:
-            # Check if we need to create or migrate schema
-            current_version = self._get_schema_version(conn)
+        try:
+            with self.transaction() as conn:
+                # Check if we need to create or migrate schema
+                current_version = self._get_schema_version(conn)
+                logger.info(f"Database schema version: {current_version}")
 
-            if current_version == 0:
-                self._create_schema(conn)
-            elif current_version < self.SCHEMA_VERSION:
-                self._migrate_schema(conn, current_version)
+                if current_version == 0:
+                    logger.info("Creating new database schema")
+                    self._create_schema(conn)
+                elif current_version < self.SCHEMA_VERSION:
+                    logger.info(f"Migrating schema from {current_version} to {self.SCHEMA_VERSION}")
+                    self._migrate_schema(conn, current_version)
+                else:
+                    logger.info("Database schema is up to date")
+        except Exception as e:
+            logger.error(f"Database initialization failed: {e}")
+            raise
 
     def _get_schema_version(self, conn: sqlite3.Connection) -> int:
         """Get current schema version"""
@@ -122,122 +142,169 @@ class SemanticSearchDB:
     def _create_schema(self, conn: sqlite3.Connection):
         """Create initial database schema"""
         logger.info("Creating database schema...")
-
-        # Schema version tracking
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS schema_version (
-                version INTEGER PRIMARY KEY
-            )
-        """
-        )
-
-        # Books tracking table
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS books (
-                book_id INTEGER PRIMARY KEY,
-                title TEXT NOT NULL,
-                authors TEXT,  -- JSON array
-                tags TEXT,     -- JSON array
-                language TEXT,
-                pubdate TEXT,
-                last_indexed TIMESTAMP,
-                embedding_model TEXT,
-                chunk_count INTEGER DEFAULT 0,
-                metadata TEXT  -- JSON
-            )
-        """
-        )
-
-        # Chunks table
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS chunks (
-                chunk_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                book_id INTEGER NOT NULL,
-                chunk_index INTEGER NOT NULL,
-                chunk_text TEXT NOT NULL,
-                start_pos INTEGER,
-                end_pos INTEGER,
-                metadata TEXT,  -- JSON
-                FOREIGN KEY (book_id) REFERENCES books(book_id) ON DELETE CASCADE,
-                UNIQUE(book_id, chunk_index)
-            )
-        """
-        )
-
-        # Try to create vector table with sqlite-vec
+        
         try:
-            # Get embedding dimensions from somewhere (default 768)
-            dimensions = 768
-
-            conn.execute(
-                f"""
-                CREATE VIRTUAL TABLE IF NOT EXISTS vec_embeddings 
-                USING vec0(
-                    chunk_id INTEGER PRIMARY KEY,
-                    embedding FLOAT[{dimensions}]
-                )
-            """
-            )
-            logger.info("Created vec0 virtual table for embeddings")
-
-        except sqlite3.OperationalError:
-            # Fallback to regular table if vec0 not available
-            logger.warning("vec0 not available, using fallback embedding storage")
+            # Schema version tracking
+            logger.info("Creating schema_version table")
             conn.execute(
                 """
-                CREATE TABLE IF NOT EXISTS embeddings (
-                    chunk_id INTEGER PRIMARY KEY,
-                    embedding BLOB NOT NULL,
-                    FOREIGN KEY (chunk_id) REFERENCES chunks(chunk_id) ON DELETE CASCADE
+                CREATE TABLE IF NOT EXISTS schema_version (
+                    version INTEGER PRIMARY KEY
                 )
             """
             )
 
-        # Search cache table
-        conn.execute(
+            # Books tracking table
+            logger.info("Creating books table")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS books (
+                    book_id INTEGER PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    authors TEXT,  -- JSON array
+                    tags TEXT,     -- JSON array
+                    language TEXT,
+                    pubdate TEXT,
+                    last_indexed TIMESTAMP,
+                    embedding_model TEXT,
+                    chunk_count INTEGER DEFAULT 0,
+                    metadata TEXT  -- JSON
+                )
             """
-            CREATE TABLE IF NOT EXISTS search_cache (
-                query_hash TEXT PRIMARY KEY,
-                query_text TEXT NOT NULL,
-                embedding BLOB NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """
-        )
 
-        # Indexing status table
-        conn.execute(
+            # Indexes table for multiple embedding indexes per book
+            logger.info("Creating indexes table")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS indexes (
+                    index_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    book_id INTEGER NOT NULL,
+                    provider TEXT NOT NULL,
+                    model_name TEXT NOT NULL,
+                    dimensions INTEGER NOT NULL,
+                    chunk_size INTEGER NOT NULL,
+                    chunk_overlap INTEGER DEFAULT 0,
+                    total_chunks INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    metadata TEXT,  -- JSON field for extra settings
+                    FOREIGN KEY (book_id) REFERENCES books(book_id) ON DELETE CASCADE,
+                    UNIQUE(book_id, provider, model_name, dimensions, chunk_size, chunk_overlap)
+                )
             """
-            CREATE TABLE IF NOT EXISTS indexing_status (
-                book_id INTEGER PRIMARY KEY,
-                status TEXT NOT NULL,  -- 'pending', 'indexing', 'completed', 'error'
-                progress REAL DEFAULT 0.0,
-                error_message TEXT,
-                started_at TIMESTAMP,
-                completed_at TIMESTAMP,
-                FOREIGN KEY (book_id) REFERENCES books(book_id) ON DELETE CASCADE
             )
-        """
-        )
 
-        # Create indices
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_chunks_book ON chunks(book_id)")
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_books_indexed ON books(last_indexed)"
-        )
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_cache_created ON search_cache(created_at)"
-        )
+            # Chunks table
+            logger.info("Creating chunks table")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS chunks (
+                    chunk_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    book_id INTEGER NOT NULL,
+                    index_id INTEGER NOT NULL,
+                    chunk_index INTEGER NOT NULL,
+                    chunk_text TEXT NOT NULL,
+                    start_pos INTEGER,
+                    end_pos INTEGER,
+                    metadata TEXT,  -- JSON
+                    FOREIGN KEY (book_id) REFERENCES books(book_id) ON DELETE CASCADE,
+                    FOREIGN KEY (index_id) REFERENCES indexes(index_id) ON DELETE CASCADE,
+                    UNIQUE(index_id, chunk_index)
+                )
+            """
+            )
 
-        # Set schema version
-        conn.execute(
-            "INSERT INTO schema_version (version) VALUES (?)", (self.SCHEMA_VERSION,)
-        )
+            # Try to create vector table with sqlite-vec
+            try:
+                # Get embedding dimensions from somewhere (default 768)
+                dimensions = 768
 
-        logger.info("Database schema created successfully")
+                conn.execute(
+                    f"""
+                    CREATE VIRTUAL TABLE IF NOT EXISTS vec_embeddings 
+                    USING vec0(
+                        chunk_id INTEGER,
+                        index_id INTEGER,
+                        embedding FLOAT[{dimensions}]
+                    )
+                """
+                )
+                logger.info("Created vec0 virtual table for embeddings")
+
+            except sqlite3.OperationalError:
+                # Fallback to regular table if vec0 not available
+                logger.warning("vec0 not available, using fallback embedding storage")
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS embeddings (
+                        chunk_id INTEGER,
+                        index_id INTEGER NOT NULL,
+                        embedding BLOB NOT NULL,
+                        PRIMARY KEY (chunk_id, index_id),
+                        FOREIGN KEY (chunk_id) REFERENCES chunks(chunk_id) ON DELETE CASCADE,
+                        FOREIGN KEY (index_id) REFERENCES indexes(index_id) ON DELETE CASCADE
+                    )
+                """
+                )
+
+            # Search cache table
+            logger.info("Creating search_cache table")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS search_cache (
+                    query_hash TEXT PRIMARY KEY,
+                    query_text TEXT NOT NULL,
+                    embedding BLOB NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """
+            )
+
+            # Indexing status table
+            logger.info("Creating indexing_status table")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS indexing_status (
+                    book_id INTEGER PRIMARY KEY,
+                    status TEXT NOT NULL,  -- 'pending', 'indexing', 'completed', 'error'
+                    progress REAL DEFAULT 0.0,
+                    error_message TEXT,
+                    started_at TIMESTAMP,
+                    completed_at TIMESTAMP,
+                    FOREIGN KEY (book_id) REFERENCES books(book_id) ON DELETE CASCADE
+                )
+            """
+            )
+
+            # Create indices
+            logger.info("Creating database indexes")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_chunks_book ON chunks(book_id)")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_books_indexed ON books(last_indexed)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_cache_created ON search_cache(created_at)"
+            )
+
+            # Set schema version
+            conn.execute(
+                "INSERT INTO schema_version (version) VALUES (?)", (self.SCHEMA_VERSION,)
+            )
+
+            # Verify tables were created
+            tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+            table_names = [table[0] for table in tables]
+            logger.info(f"Created tables: {table_names}")
+            
+            if 'indexes' not in table_names:
+                raise Exception("Critical: indexes table was not created!")
+                
+            logger.info("Database schema created successfully")
+            
+        except Exception as e:
+            logger.error(f"Error creating database schema: {e}")
+            raise
 
     def _migrate_schema(self, conn: sqlite3.Connection, from_version: int):
         """Migrate schema to current version"""
@@ -736,9 +803,46 @@ class SemanticSearchDB:
             
             # Reset SQLite sequence counters
             conn.execute("DELETE FROM sqlite_sequence")
-            
-            # Vacuum to reclaim space
+        
+        # Vacuum outside transaction to reclaim space
+        conn = self._create_connection()
+        try:
             conn.execute("VACUUM")
+        finally:
+            conn.close()
+
+    def verify_schema(self) -> Dict[str, Any]:
+        """Verify database schema and return status"""
+        try:
+            conn = self._conn
+            
+            # Check tables exist
+            tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+            table_names = [table[0] for table in tables]
+            
+            # Check schema version
+            try:
+                version = conn.execute("SELECT version FROM schema_version").fetchone()
+                schema_version = version[0] if version else 0
+            except sqlite3.OperationalError:
+                schema_version = 0
+            
+            return {
+                'schema_version': schema_version,
+                'expected_version': self.SCHEMA_VERSION,
+                'tables': table_names,
+                'indexes_table_exists': 'indexes' in table_names,
+                'books_table_exists': 'books' in table_names,
+                'chunks_table_exists': 'chunks' in table_names,
+                'db_path': str(self.db_path),
+                'db_exists': self.db_path.exists()
+            }
+        except Exception as e:
+            return {
+                'error': str(e),
+                'db_path': str(self.db_path),
+                'db_exists': self.db_path.exists()
+            }
 
     def close(self):
         """Close database connection"""

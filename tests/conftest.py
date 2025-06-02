@@ -4,7 +4,7 @@ Pytest configuration and fixtures
 
 # CRITICAL: Import calibre mocks BEFORE any other imports
 # This prevents ModuleNotFoundError for calibre modules
-import tests.calibre_mocks
+import calibre_mocks
 
 import pytest
 import sys

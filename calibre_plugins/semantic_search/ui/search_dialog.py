@@ -52,6 +52,7 @@ from calibre_plugins.semantic_search.ui.widgets import (
     SimilaritySlider,
 )
 from calibre_plugins.semantic_search.ui.theme_manager import ThemeManager
+from calibre_plugins.semantic_search.ui.viewer_integration import ViewerIntegration
 
 logger = logging.getLogger(__name__)
 
@@ -403,8 +404,8 @@ class SemanticSearchDialog(QDialog):
             config_dict = self.config.as_dict()
             embedding_service = create_embedding_service(config_dict)
             
-            # Create search engine
-            self.search_engine = SearchEngine(embedding_repo, embedding_service)
+            # Create search engine with calibre repository for metadata
+            self.search_engine = SearchEngine(embedding_repo, embedding_service, calibre_repo)
             
             # Create event loop for async operations
             self.loop = asyncio.new_event_loop()
@@ -420,15 +421,24 @@ class SemanticSearchDialog(QDialog):
             import traceback
             print(f"Search engine init error: {traceback.format_exc()}")
 
-    def _view_in_book(self, book_id: int):
-        """View result in book viewer"""
+    def _view_in_book(self, book_id: int, chunk_id: int = 0):
+        """View result in book viewer and navigate to chunk"""
         try:
             # Get the View action from Calibre's interface
             view_action = self.gui.iactions.get('View')
             if view_action:
                 # Open the book in viewer
                 view_action.view_book(book_id)
-                self.status_bar.setText(f"Opened book {book_id} in viewer")
+                
+                # If we have a chunk_id, navigate to it
+                if chunk_id > 0:
+                    # Get viewer instance
+                    # Note: This is a simplified approach - in reality we'd need to
+                    # wait for the viewer to fully load before navigating
+                    QTimer.singleShot(1000, lambda: self._navigate_to_chunk_in_viewer(book_id, chunk_id))
+                    self.status_bar.setText(f"Opened book {book_id} and navigating to search result")
+                else:
+                    self.status_bar.setText(f"Opened book {book_id} in viewer")
             else:
                 info_dialog(
                     self,
@@ -443,6 +453,37 @@ class SemanticSearchDialog(QDialog):
                 f"Failed to open book {book_id}: {str(e)}",
                 show=True,
             )
+    
+    def _navigate_to_chunk_in_viewer(self, book_id: int, chunk_id: int):
+        """Navigate to specific chunk in the viewer"""
+        try:
+            # Get the current viewer
+            # This is a simplified approach - in a real implementation we'd need
+            # to track which viewer has the book open
+            view_action = self.gui.iactions.get('View')
+            if view_action and hasattr(view_action, 'viewer'):
+                viewer = view_action.viewer
+                
+                # Create ViewerIntegration with embedding repository
+                embedding_repo = None
+                if hasattr(self, 'search_engine') and self.search_engine:
+                    embedding_repo = self.search_engine.repository
+                    
+                viewer_integration = ViewerIntegration(embedding_repo=embedding_repo)
+                
+                # Navigate to the chunk
+                success = viewer_integration.navigate_to_chunk(viewer, book_id, chunk_id)
+                
+                if success:
+                    self.status_bar.setText(f"Navigated to search result in book")
+                else:
+                    self.status_bar.setText(f"Could not navigate to search result")
+            else:
+                logger.warning("Could not find viewer instance for navigation")
+                
+        except Exception as e:
+            logger.error(f"Failed to navigate to chunk: {e}")
+            self.status_bar.setText(f"Navigation error: {str(e)}")
 
     def _find_similar(self, chunk_id: int):
         """Find similar passages"""

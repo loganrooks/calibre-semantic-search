@@ -1,0 +1,3 @@
+"""
+Embedding providers plugin system
+"""

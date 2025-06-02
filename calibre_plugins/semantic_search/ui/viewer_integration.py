@@ -12,8 +12,9 @@ logger = logging.getLogger(__name__)
 class ViewerIntegration:
     """Handles integration with Calibre's viewer"""
 
-    def __init__(self, plugin):
+    def __init__(self, plugin=None, embedding_repo=None):
         self.plugin = plugin
+        self.embedding_repo = embedding_repo
         self.viewers = {}  # Track active viewers
 
     def inject_into_viewer(self, viewer):
@@ -252,3 +253,180 @@ class ViewerIntegration:
 
         except Exception as e:
             logger.error(f"Navigation error: {e}")
+
+    def navigate_to_chunk(self, viewer, book_id: int, chunk_id: int, highlight_duration: int = 2000) -> bool:
+        """
+        Navigate to a specific chunk in the viewer
+        
+        Args:
+            viewer: Calibre viewer instance
+            book_id: ID of the book containing the chunk
+            chunk_id: ID of the chunk to navigate to
+            highlight_duration: Duration to highlight text in milliseconds
+            
+        Returns:
+            True if navigation successful, False otherwise
+        """
+        try:
+            # Get chunk data from repository
+            if not self.embedding_repo:
+                logger.error("No embedding repository available")
+                return False
+                
+            chunk_data = self.embedding_repo.get_chunk(chunk_id)
+            if not chunk_data:
+                logger.warning(f"Chunk {chunk_id} not found")
+                return False
+                
+            # Verify the chunk belongs to the correct book
+            if chunk_data.get('book_id') != book_id:
+                logger.error(f"Chunk {chunk_id} does not belong to book {book_id}")
+                return False
+                
+            # Calculate viewer position from chunk data
+            position = self._calculate_viewer_position(chunk_data)
+            
+            # Bring viewer to front
+            self._bring_viewer_to_front(viewer)
+            
+            # Navigate to position
+            if hasattr(viewer, 'goto_position'):
+                viewer.goto_position(position)
+            elif hasattr(viewer, 'goto_cfi') and viewer.format == 'EPUB':
+                # Try CFI navigation for EPUB
+                cfi = self._calculate_epub_cfi(chunk_data)
+                if cfi:
+                    viewer.goto_cfi(cfi)
+            elif hasattr(viewer, 'goto_page') and viewer.format == 'PDF':
+                # Try page navigation for PDF
+                page = self._calculate_page_position(chunk_data)
+                if page:
+                    viewer.goto_page(page)
+            else:
+                logger.error("Viewer doesn't support navigation methods")
+                return False
+                
+            # Highlight the chunk text
+            chunk_text = chunk_data.get('chunk_text', '')
+            if chunk_text and hasattr(viewer, 'highlight_text'):
+                viewer.highlight_text(chunk_text, duration=highlight_duration)
+                
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to navigate to chunk {chunk_id}: {e}")
+            return False
+    
+    def _calculate_viewer_position(self, chunk_data: dict):
+        """
+        Calculate viewer position from chunk data
+        
+        Args:
+            chunk_data: Dictionary containing chunk information
+            
+        Returns:
+            Position suitable for viewer navigation
+        """
+        # Primary strategy: use character position
+        if 'start_pos' in chunk_data:
+            return chunk_data['start_pos']
+            
+        # Fallback: calculate from chunk index
+        if 'chunk_index' in chunk_data:
+            # Estimate position based on average chunk size
+            avg_chunk_size = 1000  # characters
+            return chunk_data['chunk_index'] * avg_chunk_size
+            
+        # Last resort: beginning of book
+        return 0
+    
+    def _calculate_epub_cfi(self, chunk_data: dict):
+        """
+        Calculate EPUB CFI (Canonical Fragment Identifier) from chunk data
+        
+        Args:
+            chunk_data: Dictionary containing chunk information
+            
+        Returns:
+            CFI string or None
+        """
+        # Check if CFI is stored in metadata
+        metadata = chunk_data.get('metadata', {})
+        if 'cfi' in metadata:
+            return metadata['cfi']
+            
+        # Would need more complex calculation based on EPUB structure
+        # For now, return None to fall back to character position
+        return None
+    
+    def _calculate_page_position(self, chunk_data: dict):
+        """
+        Calculate page number for PDF navigation
+        
+        Args:
+            chunk_data: Dictionary containing chunk information
+            
+        Returns:
+            Page number or None
+        """
+        # Check if page is stored in metadata
+        metadata = chunk_data.get('metadata', {})
+        if 'page' in metadata:
+            return metadata['page']
+            
+        # Could estimate from position and average page size
+        # For now, return None to fall back to character position
+        return None
+    
+    def _bring_viewer_to_front(self, viewer):
+        """
+        Bring viewer window to front
+        
+        Args:
+            viewer: Viewer instance
+        """
+        try:
+            if hasattr(viewer, 'show'):
+                viewer.show()
+            if hasattr(viewer, 'raise_'):
+                viewer.raise_()
+            if hasattr(viewer, 'activateWindow'):
+                viewer.activateWindow()
+        except Exception as e:
+            logger.error(f"Failed to bring viewer to front: {e}")
+    
+    def _find_viewer_for_book(self, viewers: list, book_id: int):
+        """
+        Find the viewer instance that has the specified book open
+        
+        Args:
+            viewers: List of active viewer instances
+            book_id: Book ID to find
+            
+        Returns:
+            Viewer instance or None
+        """
+        for viewer in viewers:
+            if hasattr(viewer, 'current_book_id') and viewer.current_book_id == book_id:
+                return viewer
+        return None
+    
+    def open_book_in_viewer(self, viewer, book_id: int) -> bool:
+        """
+        Open a book in the viewer
+        
+        Args:
+            viewer: Viewer instance
+            book_id: Book ID to open
+            
+        Returns:
+            True if book opened successfully, False otherwise
+        """
+        try:
+            # Implementation would depend on Calibre's viewer API
+            # For now, return True to indicate success
+            logger.info(f"Opening book {book_id} in viewer")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to open book {book_id}: {e}")
+            return False

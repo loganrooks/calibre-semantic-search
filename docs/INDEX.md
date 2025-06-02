@@ -19,9 +19,12 @@
 #### 🔧 Development Resources
 - `development/` - *Empty (development plans archived)*
 
+#### 🧪 Testing Documentation
+- `testing/manual_testing_guide.md` - Step-by-step manual testing procedures
+
 #### 🎓 Lessons Learned
 - `lessons/PLUGIN_INTEGRATION_LESSONS.md` - Calibre integration solutions
-- `lessons/DEVELOPMENT_FEEDBACK.md` - Process violations and recovery
+- `lessons/DEVELOPMENT_FEEDBACK.md` - Bug fixes, TDD violations, and recovery (CRITICAL)
 
 #### 📋 Planning & Future Work
 - `planning/CONFIG_IMPROVEMENTS.md` - LiteLLM and configuration enhancements
@@ -49,12 +52,16 @@
 - `DEVELOPMENT_ARTIFACTS_CLEANUP.md` - Previous cleanup documentation
 - `IMPLEMENTATION_ANALYSIS.md` - Gap analysis (superseded by PROJECT_STATUS.md)
 
+#### 📦 Implementation Sessions (archive/2025-06-01-implementation/)
+- `IMPLEMENTATION_PLAN_2025.md` - Today's implementation plan
+- `ISSUE_RESOLUTION_SUMMARY.md` - Search issues resolution guide
+
 ## 📊 Documentation Health Status
 
 **Current Status**: ✅ **HEALTHY**
 - Root files: 4/4 ✅ (Perfect)
 - Stale documents: 0 ✅
-- Archive ratio: 73% ✅ (11/15 docs properly archived)
+- Archive ratio: 79% ✅ (15/19 docs properly archived)
 - Maintenance burden: Low ✅
 
 ## 🔄 Maintenance Schedule

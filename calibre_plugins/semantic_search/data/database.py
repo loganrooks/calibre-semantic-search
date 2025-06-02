@@ -519,6 +519,12 @@ class SemanticSearchDB:
             # Cosine similarity
             similarity = VectorOps.cosine_similarity(query_norm, stored_embedding)
 
+            # Parse authors JSON string
+            try:
+                authors = json.loads(row["authors"]) if row["authors"] else []
+            except (json.JSONDecodeError, TypeError):
+                authors = []
+            
             results.append(
                 {
                     "chunk_id": row["chunk_id"],
@@ -527,7 +533,7 @@ class SemanticSearchDB:
                     "chunk_index": row["chunk_index"],
                     "chunk_metadata": row["chunk_metadata"],
                     "title": row["title"],
-                    "authors": row["authors"],
+                    "authors": authors,
                     "book_metadata": row["book_metadata"],
                     "similarity": float(similarity),
                 }
@@ -597,6 +603,16 @@ class SemanticSearchDB:
     ):
         """Update indexing status for a book"""
         with self.transaction() as conn:
+            # Ensure book exists in books table before updating status
+            # (Foreign key constraint requires book_id to exist in books table)
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO books (book_id, title, authors, tags)
+                VALUES (?, ?, ?, ?)
+                """,
+                (book_id, "Unknown", "[]", "[]")
+            )
+            
             if status == "indexing":
                 conn.execute(
                     """
@@ -699,6 +715,30 @@ class SemanticSearchDB:
         )
 
         return stats
+
+    def clear_all(self):
+        """Clear all data from the database"""
+        with self.transaction() as conn:
+            # Delete all embeddings
+            try:
+                conn.execute("DELETE FROM vec_embeddings")
+            except sqlite3.OperationalError:
+                conn.execute("DELETE FROM embeddings")
+            
+            # Delete all chunks
+            conn.execute("DELETE FROM chunks")
+            
+            # Delete all indexing status
+            conn.execute("DELETE FROM indexing_status")
+            
+            # Delete all books
+            conn.execute("DELETE FROM books")
+            
+            # Reset SQLite sequence counters
+            conn.execute("DELETE FROM sqlite_sequence")
+            
+            # Vacuum to reclaim space
+            conn.execute("VACUUM")
 
     def close(self):
         """Close database connection"""

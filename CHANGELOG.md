@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (2025-06-01)
+- **Bug Fixes**
+  - Fixed binary data appearing in search results (EPUB files showing ZIP headers)
+  - Fixed "Copy Citation" error when clicking result card button
+  - Added text validation to prevent storing/displaying binary data
+  - Search engine now filters out results with corrupted text
+
 ### Planned for v1.1.0
 - Implement Ollama local embedding provider
 - Add floating window mode  

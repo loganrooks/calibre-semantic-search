@@ -18,6 +18,8 @@ from PyQt5.Qt import (
     pyqtSignal,
 )
 
+from calibre_plugins.semantic_search.ui.theme_manager import ThemeManager
+
 
 class SimilaritySlider(QWidget):
     """Custom slider widget for similarity threshold"""
@@ -254,7 +256,7 @@ class SearchModeSelector(QGroupBox):
 
             # Description label
             desc_label = QLabel(short_desc)
-            desc_label.setStyleSheet("QLabel { color: gray; font-size: 10pt; }")
+            desc_label.setStyleSheet(ThemeManager.get_description_label_style())
 
             layout.addWidget(radio, i, 0)
             layout.addWidget(desc_label, i, 1)
@@ -431,7 +433,7 @@ class ResultCard(QFrame):
         title_label = QLabel(f"<b>{self.result_data.get('title', 'Unknown Title')}</b>")
         title_label.setWordWrap(True)
         author_label = QLabel(f"by {self.result_data.get('author', 'Unknown Author')}")
-        author_label.setStyleSheet("QLabel { color: gray; }")
+        author_label.setStyleSheet(ThemeManager.get_status_bar_style())
         
         info_layout = QVBoxLayout()
         info_layout.addWidget(title_label)
@@ -444,15 +446,7 @@ class ResultCard(QFrame):
         # Similarity score
         score = self.result_data.get('similarity', 0.0)
         score_label = QLabel(f"<b>{score:.1%}</b>")
-        score_label.setStyleSheet(f"""
-            QLabel {{ 
-                background-color: {self._get_score_color(score)}; 
-                color: white; 
-                padding: 4px 8px; 
-                border-radius: 4px;
-                font-size: 12pt;
-            }}
-        """)
+        score_label.setStyleSheet(ThemeManager.get_score_label_style(score))
         score_label.setAlignment(Qt.AlignCenter)
         header_layout.addWidget(score_label)
         
@@ -465,14 +459,7 @@ class ResultCard(QFrame):
         
         content_label = QLabel(content)
         content_label.setWordWrap(True)
-        content_label.setStyleSheet("""
-            QLabel { 
-                background-color: #f8f9fa; 
-                padding: 8px; 
-                border-radius: 4px;
-                border: 1px solid #e9ecef;
-            }
-        """)
+        content_label.setStyleSheet(ThemeManager.get_content_preview_style())
         layout.addWidget(content_label)
         
         # Action buttons
@@ -499,28 +486,8 @@ class ResultCard(QFrame):
         layout.addLayout(button_layout)
         
         # Set hover effect
-        self.setStyleSheet("""
-            ResultCard {
-                background-color: white;
-                border: 1px solid #dee2e6;
-                border-radius: 6px;
-            }
-            ResultCard:hover {
-                border-color: #007bff;
-                background-color: #f8f9ff;
-            }
-        """)
+        self.setStyleSheet(ThemeManager.get_result_card_style())
     
-    def _get_score_color(self, score):
-        """Get color based on similarity score"""
-        if score >= 0.8:
-            return "#28a745"  # Green
-        elif score >= 0.6:
-            return "#ffc107"  # Yellow
-        elif score >= 0.4:
-            return "#fd7e14"  # Orange
-        else:
-            return "#dc3545"  # Red
 
 
 class AutoCompleteScope(QWidget):

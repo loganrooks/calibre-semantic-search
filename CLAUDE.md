@@ -953,6 +953,36 @@ Before starting ANY development work:
 
 **If ANY checklist item fails, STOP and fix environment first**
 
+### 🐛 BUG-FIRST TDD METHODOLOGY
+
+**CRITICAL RULE**: When a bug is reported, ALWAYS write a failing test first before fixing it.
+
+#### Process for Bug Reports:
+1. **Write failing test** that reproduces the exact error
+2. **Verify test fails** with the same error message
+3. **Fix the minimal code** to make test pass  
+4. **Verify fix works** in real environment
+5. **Keep test** for regression prevention
+
+#### Example:
+```python
+def test_captures_threaded_job_bug(self):
+    """
+    BUG: ThreadedJob.__init__() got unexpected keyword argument 'job_data'
+    This test should FAIL until bug is fixed.
+    """
+    # Reproduce exact conditions that cause the bug
+    interface.index_selected_books()  # This should not raise ThreadedJob errors
+```
+
+#### Benefits:
+- **Prevents regression** - Bug can't reoccur without test failing
+- **Documents the bug** - Test serves as permanent documentation  
+- **Verifies fix** - Ensures we actually fixed the root cause
+- **Builds confidence** - Future changes won't break this functionality
+
+**NEVER fix bugs without tests** - This leads to recurring issues and lack of confidence in fixes.
+
 ## Specification Quick Reference
 
 When working on specific features, consult:

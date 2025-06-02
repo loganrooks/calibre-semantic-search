@@ -256,25 +256,136 @@ class CalibreRepository(ICalibreRepository):
             logger.error(f"Error extracting text from book {book_id}: {e}")
             return ""
 
+    def _validate_extracted_text(self, text: str, format: str) -> tuple:
+        """
+        Validate that extracted text is actually text, not binary data
+        
+        Returns:
+            (is_valid, cleaned_text)
+        """
+        if not text:
+            return False, ""
+            
+        # Check for common binary signatures at the start
+        if text.startswith('PK\x03\x04') or text.startswith('PK\x05\x06'):
+            logger.error(f"Text contains ZIP header - {format} file was read as binary!")
+            return False, ""
+            
+        # Check if text has reasonable amount of printable characters
+        sample = text[:1000]  # Check first 1000 chars
+        printable_chars = sum(1 for c in sample if c.isprintable() or c.isspace())
+        
+        if len(sample) > 0 and printable_chars / len(sample) < 0.8:
+            logger.warning(f"Text from {format} appears to contain too many non-printable characters")
+            return False, ""
+        
+        return True, text
+
     def _extract_text_from_file(self, path: str, format: str) -> str:
         """Extract text from book file"""
         try:
             if format == "TXT":
                 with open(path, "r", encoding="utf-8", errors="ignore") as f:
-                    return f.read()
+                    text = f.read()
+                    is_valid, _ = self._validate_extracted_text(text, format)
+                    return text if is_valid else ""
 
-            elif format in ["EPUB", "AZW3", "MOBI"]:
-                # Use Calibre's ebook conversion tools
-                from io import BytesIO
-
-                from calibre.ebooks.conversion.plumber import Plumber
-                from calibre.ebooks.oeb.reader import OEBReader
-
-                # This is a simplified version - real implementation would be more robust
-                plumber = Plumber(path, "txt", BytesIO())
-                plumber.run()
-
-                return plumber.output.getvalue().decode("utf-8", errors="ignore")
+            elif format == "EPUB":
+                # EPUB files are ZIP archives containing HTML/XHTML files
+                try:
+                    import zipfile
+                    import re
+                    
+                    # First, verify it's a valid ZIP file
+                    if not zipfile.is_zipfile(path):
+                        logger.error(f"Invalid EPUB file (not a ZIP): {path}")
+                        return ""
+                    
+                    text_parts = []
+                    
+                    with zipfile.ZipFile(path, 'r') as epub:
+                        # Get all files in the EPUB
+                        for filename in epub.namelist():
+                            # Extract text from HTML/XHTML files
+                            if filename.endswith(('.html', '.xhtml', '.htm')):
+                                try:
+                                    content = epub.read(filename).decode('utf-8', errors='ignore')
+                                    
+                                    # Remove HTML tags
+                                    content = re.sub(r'<style[^>]*>.*?</style>', '', content, flags=re.DOTALL)
+                                    content = re.sub(r'<script[^>]*>.*?</script>', '', content, flags=re.DOTALL)
+                                    content = re.sub(r'<[^>]+>', ' ', content)
+                                    
+                                    # Clean up entities and whitespace
+                                    content = content.replace('&nbsp;', ' ')
+                                    content = content.replace('&lt;', '<')
+                                    content = content.replace('&gt;', '>')
+                                    content = content.replace('&amp;', '&')
+                                    content = re.sub(r'\s+', ' ', content)
+                                    
+                                    text_parts.append(content.strip())
+                                except Exception as e:
+                                    logger.debug(f"Could not extract text from {filename}: {e}")
+                    
+                    # Combine all text parts
+                    combined_text = ' '.join(text_parts)
+                    
+                    # Validate the extracted text
+                    is_valid, validated_text = self._validate_extracted_text(combined_text.strip(), format)
+                    if not is_valid:
+                        logger.error(f"EPUB text extraction failed validation for {path}")
+                        return ""
+                    
+                    return validated_text
+                    
+                except Exception as e:
+                    logger.warning(f"Failed to extract text from EPUB: {e}")
+                    return ""
+                    
+            elif format in ["AZW3", "MOBI"]:
+                # For AZW3/MOBI, try Calibre's conversion tools if available
+                try:
+                    # Try to use Calibre's ebook conversion
+                    from calibre.ebooks.conversion.plumber import Plumber
+                    from calibre.customize.conversion import DummyReporter
+                    from io import BytesIO
+                    
+                    # Create a plumber instance
+                    plumber = Plumber(path, 'txt', DummyReporter())
+                    
+                    # Extract text to a BytesIO object
+                    output = BytesIO()
+                    plumber.run()
+                    
+                    # Get the text content
+                    text = output.getvalue().decode('utf-8', errors='ignore')
+                    return text.strip()
+                    
+                except ImportError:
+                    # Fallback to basic extraction if Calibre tools not available
+                    logger.warning("Calibre conversion tools not available, using basic extraction")
+                    try:
+                        with open(path, "rb") as f:
+                            data = f.read()
+                        
+                        # Try to decode as UTF-8 text (very basic, may not work well)
+                        text = data.decode("utf-8", errors="ignore")
+                        
+                        # Do basic HTML tag removal if present
+                        if "<" in text and ">" in text:
+                            import re
+                            text = re.sub(r'<[^>]+>', ' ', text)
+                            text = re.sub(r'\s+', ' ', text)
+                        
+                        return text.strip()
+                        
+                    except Exception as e:
+                        logger.warning(f"Failed to extract text from {format}: {e}")
+                        return ""
+                        
+                except Exception as e:
+                    logger.warning(f"Failed to extract text from {format}: {e}")
+                    return ""
 
             elif format == "PDF":
                 # Use Calibre's PDF tools

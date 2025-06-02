@@ -2,6 +2,7 @@
 Vector search engine for semantic similarity search
 """
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from enum import Enum
@@ -88,9 +89,35 @@ class SearchEngine:
         self.repository = repository
         self.embedding_service = embedding_service
 
-    async def search(self, query: str, options: SearchOptions) -> List[SearchResult]:
+    async def search(self, query: str, options: SearchOptions, timeout: Optional[float] = 30.0) -> List[SearchResult]:
         """
-        Perform semantic search
+        Perform semantic search with timeout support
+
+        Args:
+            query: Search query text
+            options: Search configuration
+            timeout: Maximum time in seconds (None for no timeout)
+
+        Returns:
+            List of search results
+            
+        Raises:
+            asyncio.TimeoutError: If search takes longer than timeout
+            asyncio.CancelledError: If search is cancelled
+        """
+        # Validate query
+        if not query or not query.strip():
+            return []
+
+        # Apply timeout if specified
+        if timeout:
+            return await asyncio.wait_for(self._search_internal(query, options), timeout=timeout)
+        else:
+            return await self._search_internal(query, options)
+
+    async def _search_internal(self, query: str, options: SearchOptions) -> List[SearchResult]:
+        """
+        Internal search method that can be cancelled/timed out
 
         Args:
             query: Search query text
@@ -99,10 +126,6 @@ class SearchEngine:
         Returns:
             List of search results
         """
-        # Validate query
-        if not query or not query.strip():
-            return []
-
         # Route to appropriate search method
         if options.mode == SearchMode.SEMANTIC:
             return await self._semantic_search(query, options)
@@ -115,6 +138,107 @@ class SearchEngine:
         else:
             # Default to semantic
             return await self._semantic_search(query, options)
+
+    async def search_with_progress(self, query: str, options: SearchOptions, 
+                                 progress_callback=None, timeout: Optional[float] = 30.0) -> List[SearchResult]:
+        """
+        Perform search with progress feedback and early stopping capability
+        
+        Args:
+            query: Search query text
+            options: Search configuration  
+            progress_callback: Function to call with progress updates
+            timeout: Maximum time in seconds
+            
+        Returns:
+            List of search results
+        """
+        def report_progress(message: str):
+            if progress_callback:
+                progress_callback(message)
+        
+        try:
+            report_progress("Starting search...")
+            
+            # Apply timeout
+            if timeout:
+                return await asyncio.wait_for(
+                    self._search_with_progress_internal(query, options, report_progress), 
+                    timeout=timeout
+                )
+            else:
+                return await self._search_with_progress_internal(query, options, report_progress)
+                
+        except asyncio.TimeoutError:
+            report_progress("Search timed out")
+            raise
+        except asyncio.CancelledError:
+            report_progress("Search cancelled")
+            raise
+    
+    async def _search_with_progress_internal(self, query: str, options: SearchOptions, report_progress) -> List[SearchResult]:
+        """Internal search with progress reporting"""
+        
+        report_progress("Generating query embedding...")
+        
+        # Generate query embedding  
+        query_embedding = await self.embedding_service.generate_embedding(query)
+        
+        report_progress("Searching vector database...")
+        
+        # Build filters
+        filters = self._build_scope_filters(options)
+        
+        # Perform search with early stopping potential
+        raw_results = await self.repository.search_similar(
+            embedding=query_embedding,
+            limit=options.limit * 3,  # Get extra for quality filtering
+            filters=filters,
+        )
+        
+        report_progress(f"Found {len(raw_results)} potential matches...")
+        
+        # Filter and rank results
+        report_progress("Filtering and ranking results...")
+        
+        results = []
+        high_quality_count = 0
+        
+        for result in raw_results:
+            # Check for cancellation periodically
+            if not asyncio.current_task() or asyncio.current_task().cancelled():
+                raise asyncio.CancelledError()
+                
+            # Convert to SearchResult
+            search_result = SearchResult(
+                chunk_id=result.get("chunk_id", 0),
+                book_id=result.get("book_id", 0),
+                book_title=result.get("title", "Unknown"),
+                authors=result.get("authors", []),
+                chunk_text=result.get("chunk_text", ""),
+                chunk_index=result.get("chunk_index", 0),
+                similarity_score=result.get("similarity", 0.0),
+                metadata=result.get("metadata", {})
+            )
+            
+            results.append(search_result)
+            
+            # Early stopping: if we have enough high-quality results, stop processing
+            if search_result.similarity_score > 0.8:
+                high_quality_count += 1
+                if high_quality_count >= options.limit and len(results) >= options.limit:
+                    report_progress(f"Found {high_quality_count} high-quality matches, stopping early")
+                    break
+        
+        # Sort by similarity score
+        results.sort(key=lambda x: x.similarity_score, reverse=True)
+        
+        # Limit results
+        final_results = results[:options.limit]
+        
+        report_progress(f"Search complete: {len(final_results)} results")
+        
+        return final_results
 
     async def _semantic_search(
         self, query: str, options: SearchOptions
@@ -142,12 +266,18 @@ class SearchEngine:
             if row["similarity"] < options.similarity_threshold:
                 continue
 
+            # Validate chunk text isn't binary data
+            chunk_text = row.get("chunk_text", "")
+            if chunk_text.startswith('PK\x03\x04') or chunk_text.startswith('PK'):
+                logger.warning(f"Skipping result with binary data for book {row['book_id']}, chunk {row['chunk_id']}")
+                continue
+            
             result = SearchResult(
                 chunk_id=row["chunk_id"],
                 book_id=row["book_id"],
                 book_title=row.get("title", "Unknown"),
                 authors=row.get("authors", []),
-                chunk_text=row["chunk_text"],
+                chunk_text=chunk_text,
                 chunk_index=row.get("chunk_index", 0),
                 similarity_score=row["similarity"],
                 metadata=row.get("metadata", {}),

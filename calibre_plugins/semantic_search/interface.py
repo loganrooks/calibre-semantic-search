@@ -7,14 +7,27 @@ import logging
 from calibre.gui2 import error_dialog, info_dialog
 from calibre.gui2.actions import InterfaceAction
 
+# Import job management classes
+try:
+    from calibre.gui2.threaded_jobs import ThreadedJob
+except ImportError:
+    # Fallback for test environment
+    ThreadedJob = None
+
+try:
+    from .background_jobs import BackgroundJobManager
+except ImportError:
+    # May not be available during testing
+    BackgroundJobManager = None
+
 logger = logging.getLogger(__name__)
 
 # Import from qt.core instead of PyQt5 for Calibre compatibility
 try:
-    from qt.core import QAction, QIcon, QMenu, QToolButton
+    from qt.core import QAction, QIcon, QMenu, QToolButton, QCursor
 except ImportError:
     # Fallback for older Calibre versions
-    from PyQt5.Qt import QAction, QIcon, QMenu, Qt as QtCompat
+    from PyQt5.Qt import QAction, QIcon, QMenu, QCursor, Qt as QtCompat
     QToolButton = QtCompat.QToolButton
 
 from calibre_plugins.semantic_search.config import SemanticSearchConfig
@@ -39,6 +52,9 @@ class SemanticSearchInterface(InterfaceAction):
     action_add_menu = True
     allowed_in_toolbar = True
     allowed_in_menu = True
+    # Don't exclude from any context menus - we want to appear in library view context menu
+    dont_add_to = frozenset()  # Empty set means add to all context menus
+    action_type = 'current'  # Work with currently selected books
 
     def genesis(self):
         """
@@ -57,7 +73,7 @@ class SemanticSearchInterface(InterfaceAction):
             pass
 
         # The qaction is automatically created from the action_spec
-        self.qaction.triggered.connect(self.show_dialog)
+        self.qaction.triggered.connect(self.toolbar_action_triggered)
 
         # Create the menu
         self.menu = QMenu(self.gui)
@@ -72,9 +88,48 @@ class SemanticSearchInterface(InterfaceAction):
         
         # Initialize services on startup
         self._initialize_services()
+
+    def toolbar_action_triggered(self):
+        """
+        Handle main action trigger - context aware.
+        Shows different behavior based on whether books are selected.
+        """
+        # Guard against calls before GUI is ready
+        if not self.gui or not hasattr(self.gui, 'current_view') or not self.gui.current_view():
+            self.show_dialog()
+            return
+            
+        current_view = self.gui.current_view()
+        if not current_view or not current_view.selectionModel():
+            self.show_dialog()
+            return
         
-        # Add context menu to library view
-        self._add_library_context_menu()
+        # Check if books are selected (context menu scenario)
+        rows = current_view.selectionModel().selectedRows()
+        if rows:
+            # Books are selected - show context menu with options
+            menu = QMenu(self.gui)
+            
+            # Add context-specific actions
+            if len(rows) == 1:
+                # Single book selected - show all options
+                search_similar = menu.addAction("Find Similar Books")
+                search_similar.triggered.connect(self._find_similar_from_context)
+                menu.addSeparator()
+            
+            # Multiple or single book selected
+            index_action = menu.addAction(f"Index {len(rows)} Selected Book{'s' if len(rows) > 1 else ''}")
+            index_action.triggered.connect(self.index_selected_books)
+            
+            menu.addSeparator()
+            search_action = menu.addAction("Open Semantic Search...")
+            search_action.triggered.connect(self.show_dialog)
+            
+            # Show menu at cursor position
+            menu.exec(QCursor.pos())
+        else:
+            # No selection - show search dialog (toolbar click)
+            self.show_dialog()
 
     def create_menu_actions(self):
         """Create the plugin menu"""
@@ -82,13 +137,19 @@ class SemanticSearchInterface(InterfaceAction):
         self.search_action = QAction("Search Library...", self.gui)
         self.search_action.triggered.connect(self.show_dialog)
         self.menu.addAction(self.search_action)
+        
+        # Find Similar Books (context menu action)
+        self.similar_action = QAction("Find Similar Books", self.gui)
+        self.similar_action.setToolTip("Search for books with similar content to the selected book")
+        self.similar_action.triggered.connect(self._find_similar_from_context)
+        self.menu.addAction(self.similar_action)
 
         self.menu.addSeparator()
 
         # Indexing submenu
         index_menu = self.menu.addMenu("Indexing")
 
-        # Index selected books
+        # Index selected books (also context menu action)
         self.index_selected_action = QAction("Index Selected Books", self.gui)
         self.index_selected_action.triggered.connect(self.index_selected_books)
         index_menu.addAction(self.index_selected_action)
@@ -102,6 +163,13 @@ class SemanticSearchInterface(InterfaceAction):
         self.index_status_action = QAction("Indexing Status...", self.gui)
         self.index_status_action.triggered.connect(self.show_indexing_status)
         index_menu.addAction(self.index_status_action)
+        
+        # Index manager
+        index_menu.addSeparator()
+        self.index_manager_action = QAction("Manage Index...", self.gui)
+        self.index_manager_action.setToolTip("View and manage the search index")
+        self.index_manager_action.triggered.connect(self.show_index_manager)
+        index_menu.addAction(self.index_manager_action)
 
         self.menu.addSeparator()
 
@@ -180,7 +248,7 @@ class SemanticSearchInterface(InterfaceAction):
             self._start_indexing(book_ids)
 
     def _start_indexing(self, book_ids):
-        """Start the indexing process for given books"""
+        """Start the indexing process using Calibre's ThreadedJob system"""
         # Ensure services are initialized
         if not hasattr(self, 'indexing_service') or not self.indexing_service:
             self._initialize_services()
@@ -195,111 +263,184 @@ class SemanticSearchInterface(InterfaceAction):
             )
             return
         
-        # Create simple progress dialog
-        from PyQt5.Qt import QProgressDialog
-        
-        progress_dialog = QProgressDialog(
-            f"Indexing {len(book_ids)} books...", 
-            "Cancel", 
-            0, 
-            len(book_ids),
-            self.gui
-        )
-        progress_dialog.setWindowTitle("Semantic Search - Indexing Books")
-        progress_dialog.setModal(True)
-        progress_dialog.setMinimumDuration(0)
-        
-        # Handle cancellation
-        def on_cancel():
-            if self.indexing_service:
-                self.indexing_service.request_cancel()
-                
-        progress_dialog.canceled.connect(on_cancel)
-        
-        def on_progress(progress_info):
-            """Handle progress updates from indexing service"""
-            current_book = progress_info.get('current_book', 0)
-            book_id = progress_info.get('book_id', 'Unknown')
-            status = progress_info.get('status', 'Processing')
-            
-            progress_dialog.setValue(current_book)
-            progress_dialog.setLabelText(f"Book {current_book}/{len(book_ids)}: {status} (ID: {book_id})")
-        
-        def on_complete(stats):
-            """Handle indexing completion"""
-            progress_dialog.close()
-            
-            # Show results
-            success_count = stats.get('successful_books', 0)
-            failed_count = stats.get('failed_books', 0)
-            total_chunks = stats.get('total_chunks', 0)
-            total_time = stats.get('total_time', 0)
-            
-            message = (
-                f"Indexing completed!\n\n"
-                f"Successfully indexed: {success_count} books\n"
-                f"Failed: {failed_count} books\n"
-                f"Total text chunks created: {total_chunks}\n"
-                f"Time taken: {total_time:.1f} seconds"
+        # Use ThreadedJob if available, fallback to BackgroundJobManager
+        if ThreadedJob is not None:
+            # Create ThreadedJob for proper Calibre integration
+            job = ThreadedJob(
+                'semantic_search_indexing',  # Job name/identifier
+                f'Indexing {len(book_ids)} books for semantic search',  # Job description
+                self._run_indexing_job,  # Function to run in background
+                (),  # args tuple (empty - our function doesn't need args)
+                {},  # kwargs dict (empty - our function doesn't need kwargs)  
+                self._indexing_job_complete,  # Callback when job completes
+                max_concurrent_count=1  # Additional option
             )
             
-            if failed_count > 0:
-                errors = stats.get('errors', [])
-                error_details = "\n".join([f"Book {e['book_id']}: {e['error']}" for e in errors[:3]])
-                if len(errors) > 3:
-                    error_details += f"\n... and {len(errors) - 3} more errors"
-                message += f"\n\nErrors:\n{error_details}"
+            # Store book_ids on interface for job function to access
+            # (ThreadedJob doesn't pass job object to function)
+            self.current_indexing_book_ids = book_ids
             
-            if failed_count > 0:
-                error_dialog(self.gui, "Indexing Results", message, show=True)
+            # Start the job - this will show in Calibre's job indicator
+            if hasattr(self.gui, 'job_manager') and self.gui.job_manager:
+                self.gui.job_manager.run_threaded_job(job)
             else:
-                info_dialog(self.gui, "Indexing Complete", message, show=True)
-        
-        def on_error(error):
-            """Handle indexing errors"""
-            progress_dialog.close()
-            error_dialog(
-                self.gui,
-                "Indexing Error",
-                f"An error occurred during indexing:\n\n{str(error)}",
-                show=True,
+                # Fallback: start job directly
+                job.start_work()
+            
+            # Store job reference for potential cancellation
+            self.current_indexing_job = job
+        else:
+            # Fallback to BackgroundJobManager for test environment
+            if not hasattr(self, 'job_manager'):
+                if BackgroundJobManager is None:
+                    error_dialog(
+                        self.gui,
+                        "Job Manager Error",
+                        "Job management not available.",
+                        show=True,
+                    )
+                    return
+                self.job_manager = BackgroundJobManager()
+            
+            # Start indexing job
+            self.current_indexing_job_id = self.job_manager.start_indexing_job(
+                book_ids, self._indexing_job_complete
             )
         
-        # Add progress callback
-        self.indexing_service.add_progress_callback(on_progress)
+        # Show status message
+        if hasattr(self.gui, 'status_bar') and self.gui.status_bar:
+            self.gui.status_bar.show_message(
+                f'Starting indexing of {len(book_ids)} books...', 3000
+            )
+
+    def _run_indexing_job(self, **kwargs):
+        """
+        Run indexing in background thread (ThreadedJob callback).
+        This runs in a separate thread - no GUI operations allowed!
         
-        # Start indexing in background thread
-        import threading
+        Calibre passes additional kwargs:
+        - notifications: queue.Queue for progress updates
+        - abort: threading.Event to signal cancellation
+        - log: logging object for job logging
+        """
         import asyncio
         
-        def run_indexing():
-            """Run indexing in background thread"""
+        # Extract Calibre's additional arguments
+        notifications = kwargs.get('notifications')
+        abort = kwargs.get('abort')
+        log = kwargs.get('log')
+        
+        try:
+            # Get book_ids from interface (stored before job started)
+            book_ids = getattr(self, 'current_indexing_book_ids', [])
+            if not book_ids:
+                if log:
+                    log.error("No book_ids found for indexing job")
+                return None
+            
+            # Check if job was aborted before starting
+            if abort and abort.is_set():
+                if log:
+                    log.info("Indexing job aborted before starting")
+                return None
+            
+            # Create event loop for this thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
             try:
-                # Create new event loop for this thread
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
+                # Log start of indexing
+                if log:
+                    log.info(f"Starting indexing of {len(book_ids)} books")
                 
                 # Run the indexing
                 stats = loop.run_until_complete(
                     self.indexing_service.index_books(book_ids, reindex=False)
                 )
                 
-                # Report completion on main thread using Qt's invoke method
-                from PyQt5.Qt import QTimer, QApplication
-                QTimer.singleShot(0, lambda: on_complete(stats))
+                # Log completion
+                if log:
+                    log.info(f"Indexing completed: {stats.get('successful_books', 0)} successful, {stats.get('failed_books', 0)} failed")
                 
-            except Exception as e:
-                # Report error on main thread  
-                from PyQt5.Qt import QTimer, QApplication
-                QTimer.singleShot(0, lambda: on_error(e))
+                return stats  # This will be passed to _indexing_job_complete
+                
             finally:
-                # Clean up
-                self.indexing_service.remove_progress_callback(on_progress)
                 loop.close()
+                
+        except Exception as e:
+            # Log error
+            if log:
+                log.error(f"Indexing job failed: {str(e)}")
+            # Exception will be caught by ThreadedJob and passed to callback
+            raise
+
+    def _indexing_job_complete(self, job_or_result):
+        """Handle indexing job completion from ThreadedJob or BackgroundJobManager"""
         
-        # Show progress dialog and start background thread
-        progress_dialog.show()
-        threading.Thread(target=run_indexing, daemon=True).start()
+        # Handle ThreadedJob completion
+        if hasattr(job_or_result, 'failed'):  # This is a ThreadedJob
+            job = job_or_result
+            if job.failed:
+                # Job failed with exception
+                error_dialog(
+                    self.gui,
+                    "Indexing Error",
+                    f"Indexing failed:\n\n{str(job.exception)}",
+                    show=True,
+                )
+            else:
+                # Job completed successfully
+                stats = job.result
+                
+                success_count = stats.get('successful_books', 0)
+                failed_count = stats.get('failed_books', 0)
+                total_chunks = stats.get('total_chunks', 0)
+                total_time = stats.get('total_time', 0)
+                
+                message = (
+                    f"Indexing completed!\n\n"
+                    f"Successfully indexed: {success_count} books\n"
+                    f"Failed: {failed_count} books\n"
+                    f"Total text chunks created: {total_chunks}\n"
+                    f"Time taken: {total_time:.1f} seconds"
+                )
+                
+                if failed_count > 0:
+                    errors = stats.get('errors', [])
+                    error_details = "\n".join([f"Book {e['book_id']}: {e['error']}" for e in errors[:3]])
+                    if len(errors) > 3:
+                        error_details += f"\n... and {len(errors) - 3} more errors"
+                    message += f"\n\nErrors:\n{error_details}"
+                
+                if failed_count > 0:
+                    error_dialog(self.gui, "Indexing Results", message, show=True)
+                else:
+                    info_dialog(self.gui, "Indexing Complete", message, show=True)
+            
+            # Clear job reference
+            if hasattr(self, 'current_indexing_job'):
+                del self.current_indexing_job
+        
+        else:  # Handle BackgroundJobManager completion
+            result = job_or_result
+            if "error" in result:
+                error_dialog(
+                    self.gui,
+                    "Indexing Error", 
+                    f"Indexing failed:\n\n{result['error']}",
+                    show=True
+                )
+            else:
+                info_dialog(
+                    self.gui,
+                    "Indexing Complete",
+                    f"Successfully indexed {result.get('indexed_books', 0)} books!",
+                    show=True
+                )
+            
+            # Clear job reference
+            if hasattr(self, 'current_indexing_job_id'):
+                del self.current_indexing_job_id
 
     def show_indexing_status(self):
         """Show the current indexing status"""
@@ -319,14 +460,14 @@ class SemanticSearchInterface(InterfaceAction):
                 finally:
                     loop.close()
                 
-                # Format status message
+                # Format status message with safe access
                 message = f"""Indexing Status:
 
-Total Books: {status['total_books']}
-Indexed Books: {status['indexed_books']}
-In Progress: {status['in_progress']}
-Errors: {status['errors']}
-Last Indexed: {status['last_indexed']}"""
+Total Books: {status.get('total_books', 0)}
+Indexed Books: {status.get('indexed_books', 0)}
+In Progress: {status.get('in_progress', 0)}
+Errors: {status.get('errors', 0)}
+Last Indexed: {status.get('last_indexed', 'Never')}"""
                 
             else:
                 # Indexing service not initialized
@@ -350,6 +491,13 @@ Last Indexed: {status['last_indexed']}"""
         """Show the configuration dialog"""
         self.interface_action_base_plugin.do_user_config(self.gui)
 
+    def show_index_manager(self):
+        """Show the index management dialog"""
+        from calibre_plugins.semantic_search.ui.index_manager_dialog import IndexManagerDialog
+        
+        dialog = IndexManagerDialog(self, self.gui)
+        dialog.exec_()
+    
     def show_about(self):
         """Show about dialog"""
         text = self.interface_action_base_plugin.about()
@@ -471,6 +619,33 @@ Last Indexed: {status['last_indexed']}"""
         # Re-initialize services for new library
         self._initialize_services()
 
+    
+    def location_selected(self, loc):
+        """
+        Called when plugin is visible and user selects books.
+        This enables the context menu items for selected books.
+        """
+        # Guard against early calls before GUI is ready
+        if not self.gui or not hasattr(self.gui, 'current_view') or not self.gui.current_view():
+            return
+            
+        current_view = self.gui.current_view()
+        if not current_view or not current_view.selectionModel():
+            return
+        
+        # Enable/disable context menu items based on selection
+        selected_rows = current_view.selectionModel().selectedRows()
+        enabled = len(selected_rows) > 0
+        
+        # Enable index selected action when books are selected
+        if hasattr(self, 'index_selected_action'):
+            self.index_selected_action.setEnabled(enabled)
+        
+        # Enable find similar action only for single selection
+        if hasattr(self, 'similar_action'):
+            single_selection = len(selected_rows) == 1
+            self.similar_action.setEnabled(single_selection)
+
     def shutting_down(self):
         """
         Called when Calibre is shutting down
@@ -478,73 +653,6 @@ Last Indexed: {status['last_indexed']}"""
         # Clean up resources
         if hasattr(self, "search_dialog"):
             self.search_dialog.close()
-    
-    def _add_library_context_menu(self):
-        """Add semantic search options to library view context menu"""
-        try:
-            # Get the library view
-            library_view = self.gui.library_view
-            
-            # Create context menu actions
-            self._create_context_menu_actions()
-            
-            # Add our actions to the library view context menu
-            # Calibre plugins can add actions via the plugin manager
-            library_view.add_plugin_context_menu_action(self.index_context_action)
-            library_view.add_plugin_context_menu_action(self.similar_context_action)
-            
-            logger.info("Added semantic search context menu to library view")
-            
-        except Exception as e:
-            logger.error(f"Failed to add context menu: {e}")
-    
-    def _create_context_menu_actions(self):
-        """Create context menu actions"""
-        # Index for Semantic Search action
-        self.index_context_action = QAction("Index for Semantic Search", self.gui)
-        self.index_context_action.setToolTip(
-            "Prepare selected books for semantic search by generating AI embeddings"
-        )
-        self.index_context_action.triggered.connect(self._index_selected_from_context)
-        
-        # Find Similar Books action  
-        self.similar_context_action = QAction("Find Similar Books", self.gui)
-        self.similar_context_action.setToolTip(
-            "Search for books with similar content to the selected book"
-        )
-        self.similar_context_action.triggered.connect(self._find_similar_from_context)
-        
-        # Set icons if available
-        try:
-            index_icon = get_icons('search_24.png')
-            if index_icon and not index_icon.isNull():
-                self.index_context_action.setIcon(index_icon)
-                
-            similar_icon = get_icons('search_32.png') 
-            if similar_icon and not similar_icon.isNull():
-                self.similar_context_action.setIcon(similar_icon)
-        except Exception as e:
-            logger.debug(f"Icons not available: {e}")
-            # Icons are optional
-            pass
-    
-    def _index_selected_from_context(self):
-        """Index selected books from context menu"""
-        # Get selected book IDs
-        rows = self.gui.current_view().selectionModel().selectedRows()
-        if not rows:
-            error_dialog(
-                self.gui,
-                "No Selection",
-                "No books selected. Please select books to index.",
-                show=True,
-            )
-            return
-        
-        book_ids = [self.gui.current_view().model().id(row) for row in rows]
-        
-        # Use existing indexing method
-        self._start_indexing(book_ids)
     
     def _find_similar_from_context(self):
         """Find similar books from context menu"""

@@ -51,6 +51,7 @@ from calibre_plugins.semantic_search.ui.widgets import (
     SearchModeSelector,
     SimilaritySlider,
 )
+from calibre_plugins.semantic_search.ui.theme_manager import ThemeManager
 
 logger = logging.getLogger(__name__)
 
@@ -176,7 +177,7 @@ class SemanticSearchDialog(QDialog):
 
         # Status bar
         self.status_bar = QLabel("Ready to search")
-        self.status_bar.setStyleSheet("QLabel { color: gray; }")
+        self.status_bar.setStyleSheet(ThemeManager.get_status_bar_style())
 
         # Progress bar (hidden by default)
         self.progress_bar = QProgressBar()
@@ -214,10 +215,9 @@ class SemanticSearchDialog(QDialog):
         count = len(self.query_input.toPlainText())
         self.char_counter.setText(f"{count} / 5000")
 
-        if count > 5000:
-            self.char_counter.setStyleSheet("QLabel { color: red; }")
-        else:
-            self.char_counter.setStyleSheet("QLabel { color: gray; }")
+        self.char_counter.setStyleSheet(
+            ThemeManager.get_char_counter_style(is_over_limit=count > 5000)
+        )
 
     def perform_search(self):
         """Execute search"""
@@ -489,14 +489,54 @@ class SemanticSearchDialog(QDialog):
         self.config.set("search_options.similarity_threshold", value)
         self.status_bar.setText(f"Similarity threshold set to {value:.2f}")
 
-    def _copy_citation(self, book_id: int, chunk_id: int = None):
+    def _copy_citation(self, result_dict: dict):
         """Copy citation to clipboard"""
         try:
-            # Find the result data
-            result_data = None
-            for result in self.current_results:
-                if result.book_id == book_id:
-                    if chunk_id is None or (hasattr(result, 'chunk_id') and result.chunk_id == chunk_id):
+            # Handle both dict format (from ResultCard) and direct parameters
+            if isinstance(result_dict, dict):
+                # Extract book_id and find the actual SearchResult object
+                book_id = result_dict.get('book_id', 0)
+                chunk_id = result_dict.get('chunk_id', None)
+                
+                # Find the actual SearchResult in current_results
+                result_data = None
+                for result in self.current_results:
+                    if result.book_id == book_id:
+                        if chunk_id is None or (hasattr(result, 'chunk_id') and result.chunk_id == chunk_id):
+                            result_data = result
+                            break
+                
+                if not result_data:
+                    # Fallback: use the dict data directly
+                    authors = result_dict.get('author', '').split(', ') if result_dict.get('author') else ['Unknown Author']
+                    title = result_dict.get('title', 'Unknown Title')
+                    chunk_text = result_dict.get('chunk_text', '')
+                    
+                    # Format citation from dict data
+                    author_str = ', '.join(authors) if isinstance(authors, list) else authors
+                    citation = f"{author_str}. {title}."
+                    
+                    # Add chunk context if available
+                    if chunk_text and not chunk_text.startswith('PK'):  # Skip binary data
+                        excerpt = chunk_text[:100].strip()
+                        if len(chunk_text) > 100:
+                            excerpt += "..."
+                        citation += f' "{excerpt}"'
+                    
+                    # Copy to clipboard
+                    from PyQt5.Qt import QApplication
+                    clipboard = QApplication.clipboard()
+                    clipboard.setText(citation)
+                    
+                    self.status_bar.setText("Citation copied to clipboard")
+                    return
+            else:
+                # Legacy support for direct parameters
+                book_id = result_dict
+                chunk_id = None
+                result_data = None
+                for result in self.current_results:
+                    if result.book_id == book_id:
                         result_data = result
                         break
             

@@ -29,7 +29,7 @@ This project includes Claude Code custom commands for both project-specific and 
 
 **Example**: `/project:launch-task "Add search filters"` runs complete workflow from analysis to implementation with automatic requirement ID generation and git management.
 
-**Tip**: Use `/project:list-commands` to see all 25 available commands with descriptions.
+**Tip**: Use `/project:list-commands` to see all 26 available commands with descriptions.
 
 ## Project Overview
 This is a Calibre plugin that adds AI-powered semantic search capabilities specifically optimized for philosophical and academic texts. It uses vector embeddings to enable conceptual similarity search beyond traditional keyword matching.

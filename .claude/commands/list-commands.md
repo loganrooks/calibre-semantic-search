@@ -4,6 +4,7 @@ List all available custom commands with brief descriptions.
 
 ### 📋 Project Management & Status
 - `/project:status` - Check current project status and priorities
+- `/project:next-work` - **COMPREHENSIVE**: Identify next TODOs, verify project state, prepare context for next cycle
 - `/project:resume-work` - Resume work with context check
 - `/project:update-docs <work>` - Update documentation after changes
 
@@ -40,6 +41,11 @@ List all available custom commands with brief descriptions.
 - `/project:create-pr` - Create pull request with proper requirement linking and conventional format
 
 ## Quick Start Examples
+
+**Identifying next work:**
+```
+/project:next-work
+```
 
 **Starting a new feature:**
 ```
@@ -94,9 +100,10 @@ List all available custom commands with brief descriptions.
 3. `/project:tech-debt` - Find and plan debt reduction
 
 ### "I'm continuing work"
-1. `/project:resume-work` - Get oriented
-2. `/project:status` - Check project status
-3. `/project:quick-check` - Verify specific components
+1. `/project:next-work` - **BEST START**: Comprehensive analysis of what to do next
+2. `/project:resume-work` - Get oriented with existing work
+3. `/project:status` - Check project status
+4. `/project:quick-check` - Verify specific components
 
 ### "I need to manage git and requirements" ⭐ NEW
 1. `/project:git-debt` - Clean up uncommitted changes
@@ -112,6 +119,6 @@ All workflow commands now include:
 - **Branch management** following feature/[ID]-description pattern
 - **Pull request integration** with proper documentation
 
-Total Commands: **25** (3 new git management commands added)
+Total Commands: **26** (4 new commands: 3 git management + 1 comprehensive work analysis)
 
 Remember: Commands are designed to enforce best practices, prevent common AI coding pitfalls through verification checkpoints, and maintain clean git history with full requirement traceability.

@@ -31,14 +31,18 @@ This plan addresses:
 
 ## 🔄 Git Flow Strategy
 
-### Branch Structure
+### Branch Structure (GitFlow)
 ```
-master
+master (production/deployment)
+  ↑
+develop (main development branch)
   ├── feature/fix-integration-phase-0  (Foundation fixes)
   ├── feature/fix-integration-phase-1  (Critical UI fixes)
   ├── feature/implement-requirements   (Spec requirements)
   └── feature/architecture-cleanup     (Technical debt)
 ```
+
+**Important**: All feature PRs go to `develop`, only release PRs go from `develop` to `master`
 
 ### Commit Convention
 ```bash
@@ -53,9 +57,11 @@ docs(plan): update implementation progress
 
 ### PR Strategy
 - One PR per phase (small, reviewable chunks)
+- **All PRs target `develop` branch, never `master`**
 - Each PR must pass all tests
-- Update CHANGELOG.md in each PR
+- Update both PROJECT_STATUS.md and CHANGELOG.md before commit
 - Reference requirement IDs in commits
+- Release PRs: `develop` → `master` only for version releases
 
 ## 📚 Context Gathering Strategy
 

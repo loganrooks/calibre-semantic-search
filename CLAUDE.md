@@ -187,10 +187,12 @@ After each work session, update:
 
 ## Quick Reference
 
-### Current Git Status
-- Branch: `feature/ui-backend-integration`
-- Version: 0.9.0 → 1.0.0
-- Next Release: v1.0.0
+### Current Git Status & Workflow
+- **Current Branch**: `feature/ui-backend-integration`
+- **Version**: 0.9.0 → 1.0.0
+- **Git Flow**: feature/* → develop → master (production)
+- **PR Target**: Always create PRs to `develop` branch, never directly to `master`
+- **Release Process**: develop → master PRs only for version releases
 
 ### Critical Files
 - `interface.py` - Main plugin entry (has integration gaps)

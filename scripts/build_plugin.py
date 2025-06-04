@@ -37,8 +37,10 @@ def copy_plugin_files(src_dir, build_dir):
 def create_plugin_zip(build_dir, output_file):
     """Create the plugin ZIP file"""
     with zipfile.ZipFile(output_file, 'w', zipfile.ZIP_DEFLATED) as zf:
-        # Walk through build directory and add files
-        for root, dirs, files in os.walk(build_dir):
+        # Walk through the semantic_search directory specifically
+        plugin_dir = build_dir / 'calibre_plugins' / 'semantic_search'
+        
+        for root, dirs, files in os.walk(plugin_dir):
             # Skip __pycache__ directories
             dirs[:] = [d for d in dirs if d != '__pycache__']
             
@@ -47,14 +49,19 @@ def create_plugin_zip(build_dir, output_file):
                     continue
                     
                 file_path = Path(root) / file
-                arcname = file_path.relative_to(build_dir)
+                # Make the path relative to the semantic_search directory
+                arcname = file_path.relative_to(plugin_dir)
                 
-                # Special handling for plugin files
-                if arcname.parts[0] == 'calibre_plugins':
-                    # Remove the calibre_plugins prefix for the archive
-                    arcname = Path(*arcname.parts[1:])
-                
+                # Skip plugin-import-name file here as we'll add it at root
+                if 'plugin-import-name' in str(file):
+                    continue
+                    
                 zf.write(file_path, arcname)
+        
+        # Add the plugin-import-name file at the root (only once)
+        import_name_file = build_dir / 'plugin-import-name-semantic_search.txt'
+        if import_name_file.exists():
+            zf.write(import_name_file, 'plugin-import-name-semantic_search.txt')
     
     print(f"Created plugin ZIP: {output_file}")
     print(f"Size: {output_file.stat().st_size / 1024:.1f} KB")
@@ -63,7 +70,7 @@ def create_plugin_zip(build_dir, output_file):
 def verify_plugin_structure(zip_file):
     """Verify the plugin ZIP has correct structure"""
     required_files = [
-        'semantic_search/__init__.py',
+        '__init__.py',
         'plugin-import-name-semantic_search.txt'
     ]
     

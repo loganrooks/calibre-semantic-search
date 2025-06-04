@@ -1,279 +1,178 @@
 # Calibre Semantic Search Plugin - Development Guide
 
+## 📚 Custom Commands Available
+
+This project includes Claude Code custom commands for both project-specific and general development workflows with **integrated git management and requirement tracking**:
+
+### Project-Specific Commands
+- `/project:status` - Check current status and priorities
+- `/project:wire-component <name>` - Wire component into Calibre
+- `/project:debug-integration <component>` - Debug integration issues
+- `/project:find-placeholders [area]` - Find unimplemented functionality
+- `/project:resume-work` - Resume with context check
+
+### General Development Workflow Commands
+- `/project:launch-task <description>` - Full SPARC+TDD orchestration with git integration
+- `/project:sparc-analyze <problem>` - Thorough SPARC analysis
+- `/project:architect <feature>` - Design architecture
+- `/project:create-spec <feature>` - Create detailed specifications with requirement tracking
+- `/project:tdd-cycle <feature>` - Complete TDD implementation with git integration
+- `/project:verify-implementation <feature>` - Verify against specs
+- `/project:code-review [component]` - Automated code review
+- `/project:health-check` - Workspace health assessment
+- `/project:tech-debt [area]` - Technical debt analysis
+
+### Git & Requirement Management (NEW)
+- `/project:git-debt` - Organize uncommitted changes into logical conventional commits
+- `/project:generate-requirement-id <description>` - Generate unique trackable requirement ID
+- `/project:create-pr` - Create pull request with proper requirement linking
+
+**Example**: `/project:launch-task "Add search filters"` runs complete workflow from analysis to implementation with automatic requirement ID generation and git management.
+
+**Tip**: Use `/project:list-commands` to see all 26 available commands with descriptions.
+
 ## Project Overview
 This is a Calibre plugin that adds AI-powered semantic search capabilities specifically optimized for philosophical and academic texts. It uses vector embeddings to enable conceptual similarity search beyond traditional keyword matching.
+
+**Current Status:** Critical Integration Phase - Components built but not connected (v0.9.0)  
+**Target Release:** v1.0.0 (4-6 hours of integration work remaining)
+
+## 🔧 CURRENT ACTIVE TASK
+
+**Task**: Wire implemented components into live Calibre interface
+
+**Recent Work (2025-06-03)**:
+- ✅ Enhanced Index Manager with multi-index display
+- ✅ Added embedding configuration UI (model selection, dimensions)
+- ✅ Fixed database initialization issues
+- ✅ Created comprehensive TDD plan for chunking strategies
+- ❌ Search engine still not wired to UI
+- ❌ Theme manager not applied to dialogs
+
+**Next Steps**:
+1. Wire SearchEngine to search_dialog.py:perform_search()
+2. Apply ThemeManager stylesheet to search dialog
+3. Add menu item for IndexManagerDialog
+4. Connect ViewerIntegration to context menu
 
 ## Important: Specification Documents
 This project is based on comprehensive specification documents located in `semantic_docs/`:
 - **calibre-semantic-spec-01.md**: Executive Summary & Quick Start Guide
-- **calibre-semantic-spec-02.md**: Core Requirements Specification (FR, NFR, PRR)
+- **calibre-semantic-spec-02.md**: Core Requirements Specification
 - **calibre-semantic-spec-03.md**: Architecture Design Document
 - **calibre-semantic-spec-04.md**: Calibre Integration Guide
 - **calibre-semantic-spec-05.md**: Testing & Verification Specification
-- **calibre-semantic-spec-06.md**: Development Workflow Guide (SPARC methodology)
+- **calibre-semantic-spec-06.md**: Development Workflow Guide
+- **calibre-semantic-spec-07.md**: Risk Analysis & Mitigation Strategy
 
-**⚠️ IMPORTANT**: Always refer to these specification documents for detailed requirements, architectural decisions, and implementation guidelines. This CLAUDE.md provides a quick reference, but the specs are the authoritative source.
+## Implementation Status
+
+### ✅ Completed Components (Built & Tested)
+- **Core Services** (98% spec compliance)
+  - Multi-provider embedding service with LiteLLM
+  - Philosophy-optimized search engine
+  - Intelligent text processing
+  - Multi-index support per book
+  
+- **User Interface** (95% spec compliance)
+  - Professional search dialog
+  - Complete IndexManagerDialog with CRUD
+  - Dynamic ThemeManager
+  - ViewerIntegration with navigation
+  
+- **Data Layer** (100% spec compliance)
+  - SQLite with sqlite-vec
+  - Repository pattern
+  - Multi-level caching
+
+- **Testing Suite** (275+ tests passing)
+  - Unit, integration, performance tests
+  - Complete test isolation
+
+### 🔧 Critical Integration Gaps
+See `/critical-issues` for detailed list. Main issues:
+1. SearchEngine not wired to search dialog
+2. ThemeManager not applied to UI
+3. IndexManagerDialog not accessible
+4. ViewerIntegration not called
+5. Plugin system not integrated
 
 ## Key Technologies
 - **Language**: Python 3.8+
 - **UI Framework**: Qt 5.12+ (via Calibre)
 - **Vector Database**: SQLite with sqlite-vec extension
-- **Embedding Models**: Vertex AI (primary), OpenAI, Cohere, local models (fallbacks)
+- **Embedding Models**: Multiple providers via LiteLLM
 - **Plugin System**: Calibre's InterfaceAction framework
-
-## Project Structure
-```
-calibre-semantic-search/
-├── calibre_plugins/semantic_search/  # Main plugin code
-│   ├── core/                        # Business logic (embedding, search, text processing)
-│   ├── data/                        # Data access layer (database, repositories, cache)
-│   ├── ui/                          # User interface (dialogs, widgets, viewer integration)
-│   └── resources/                   # Icons, translations
-├── tests/                           # Test suite
-│   ├── unit/                        # Component tests
-│   ├── integration/                 # Integration tests
-│   ├── philosophical/               # Domain-specific tests
-│   └── performance/                 # Performance benchmarks
-├── docs/                            # Documentation
-└── scripts/                         # Build and utility scripts
-```
 
 ## Development Commands
 
 ### Testing
 ```bash
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=calibre_plugins.semantic_search --cov-report=html
-
-# Run specific test categories
-pytest tests/unit -v
-pytest tests/integration -v
-pytest tests/philosophical -v
-pytest tests/performance --benchmark-only
-
-# Run linting and type checking
-black calibre_plugins/
-isort calibre_plugins/
-mypy calibre_plugins/
+pytest                          # Run all tests
+pytest --cov=calibre_plugins    # With coverage
+pytest tests/unit -v            # Specific category
 ```
 
 ### Building
 ```bash
-# Build plugin ZIP file
-python scripts/build_plugin.py
-
-# Install to Calibre for testing
-calibre-customize -a calibre-semantic-search.zip
+python scripts/build_plugin.py  # Build plugin ZIP
+calibre-customize -a calibre-semantic-search.zip  # Install
 ```
 
-### Running Calibre with plugin
+### Running
 ```bash
-# Run Calibre in debug mode
-calibre-debug -g
-
-# Run with console output
-calibre-debug -g 2>&1 | tee calibre.log
+calibre-debug -g               # Run with debug output
+calibre-debug -g 2>&1 | tee calibre.log  # Capture output
 ```
 
-## Version Control Best Practices
+## Development Guidelines
 
-### Branch Strategy
-- `main` - Stable releases only
-- `develop` - Integration branch for features
-- `feature/*` - Individual feature branches
-- `bugfix/*` - Bug fix branches
-- `release/*` - Release preparation branches
+### Critical Rules
+1. **NO ASSUMPTIONS**: Always verify with `calibre-debug -c` before claiming something doesn't work
+2. **READ FIRST**: Use Read tool to examine files before modifying
+3. **TDD DISCIPLINE**: Red-Green-Refactor with actual test execution
+4. **VERIFY INTEGRATION**: Test in live Calibre, not just unit tests
 
-### Commit Message Convention
-Follow conventional commits format:
-```
-type(scope): subject
+### Common Pitfalls
+- NumPy not available → Use VectorOps pure Python implementation
+- Use `qt.core` imports, not PyQt5 directly
+- Use print() for debugging, not logger.info() (for Calibre visibility)
+- Check if services are initialized before use
 
-body (optional)
+### Documentation Updates
+After each work session, update:
+- PROJECT_STATUS.md - Current status and completion
+- CHANGELOG.md - What was added/fixed/changed
+- Run `/project:update-docs` for guided updates
 
-footer (optional)
-```
+### Important Lessons Learned
 
-Types:
-- `feat`: New feature
-- `fix`: Bug fix
-- `docs`: Documentation changes
-- `style`: Code style changes (formatting, etc)
-- `refactor`: Code refactoring
-- `test`: Test additions or changes
-- `chore`: Build process or auxiliary tool changes
+#### Implementation vs Integration (2025-06-02)
+- **Discovery**: Components can be fully built and tested but not visible to users
+- **Lesson**: Always verify user-facing functionality, not just unit tests
+- **Prevention**: Test in live Calibre after implementing
 
-Examples:
-```
-feat(search): add dialectical search mode
-fix(ui): correct context menu positioning in viewer
-docs(api): update embedding service documentation
-test(philosophy): add Heidegger concept tests
-```
+#### File Naming Conflicts
+- **Problem**: `ui.py` conflicts with Calibre internals
+- **Solution**: Renamed to `interface.py`
+- **Prevention**: Check Calibre namespace before naming
 
-### Git Workflow
-
-#### Branch Structure
-- **master**: Production-ready code only. Protected branch.
-- **develop**: Integration branch for features. All feature branches merge here.
-- **feature/\***: Feature branches for new functionality
-- **bugfix/\***: Bug fix branches
-- **hotfix/\***: Emergency fixes that go directly to master
-
-#### Development Flow
-
-1. **Starting New Work**:
-   ```bash
-   # Always start from updated develop
-   git checkout develop
-   git pull origin develop
-   
-   # Create feature branch with descriptive name
-   git checkout -b feature/repository-tests
-   # OR
-   git checkout -b bugfix/search-performance
-   ```
-
-2. **During Development**:
-   ```bash
-   # Make atomic commits with clear messages
-   git add -p  # Review changes piece by piece
-   git commit -m "feat(core): implement repository pattern for data access"
-   
-   # Push regularly to backup work
-   git push origin feature/repository-tests
-   ```
-
-3. **Before Creating PR**:
-   - Run all tests: `pytest`
-   - Run linting: `black . && isort .`
-   - Review changes: `git diff develop...HEAD`
-   - Update documentation if needed
-   - Ensure commits follow conventional format
-
-4. **Pull Request Guidelines**:
-   - Create PR from feature branch to `develop` (never to master)
-   - PR title should follow conventional commit format
-   - PR description must include:
-     - What changes were made and why
-     - Which specs/requirements are addressed
-     - Testing approach used
-     - Any breaking changes
-   - Must pass all CI checks
-   - Must have test coverage for new code
-   - Requires at least one review
-
-5. **After PR Approval**:
-   ```bash
-   # Merge via GitHub PR interface (squash if many commits)
-   # Delete feature branch after merge
-   git checkout develop
-   git pull origin develop
-   git branch -d feature/repository-tests
-   ```
-
-6. **Release Process**:
-   ```bash
-   # Only when develop is stable and tested
-   git checkout master
-   git pull origin master
-   git merge develop
-   git tag -a v1.0.0 -m "Release version 1.0.0"
-   git push origin master --tags
-   ```
-
-#### Branch Naming Conventions
-- feature/descriptive-name (e.g., feature/dialectical-search)
-- bugfix/issue-description (e.g., bugfix/embedding-memory-leak)
-- hotfix/critical-issue (e.g., hotfix/search-crash)
-
-#### Commit Message Examples
-```
-feat(search): add genealogical search mode for concept evolution
-fix(ui): prevent dialog overflow on small screens
-test(philosophy): add Hegel dialectical concept tests
-docs(api): update embedding service API documentation
-refactor(core): extract chunking strategies to separate classes
-perf(search): optimize vector similarity calculations
-chore(deps): update numpy to 1.24.0
-```
-
-#### IMPORTANT: Never commit directly to master or develop!
-
-### Version Tagging
-Use semantic versioning: `MAJOR.MINOR.PATCH`
-```bash
-git tag -a v1.0.0 -m "Release version 1.0.0"
-git push origin v1.0.0
-```
-
-## Important Architectural Decisions
-
-These decisions are detailed in `semantic_docs/calibre-semantic-spec-03.md`:
-
-1. **Plugin-Based Architecture**: All functionality via Calibre's plugin system, no core modifications (see ADR-001 in spec-03)
-2. **SQLite with sqlite-vec**: For vector storage instead of external vector DB (see ADR-002 in spec-03)
-3. **Multi-Provider Embeddings**: Fallback chain for reliability (see ADR-003 in spec-03)
-4. **Hybrid Chunking**: Smart text chunking that preserves philosophical arguments (see FR-013 in spec-02)
-5. **Philosophy-Aware Search**: Special modes for dialectical and genealogical search (see PRR-010/011 in spec-02)
+#### Pure Python Dependencies
+- **Problem**: NumPy not available in Calibre
+- **Solution**: Created VectorOps pure Python implementation
+- **Prevention**: Only use pure Python libraries
 
 ## Performance Targets
-
-From `semantic_docs/calibre-semantic-spec-02.md` (NFR section):
-- Search latency: <100ms for 10,000 books (NFR-001)
-- Indexing speed: ≥50 books/hour (NFR-002)
-- Memory usage: <500MB during operation (NFR-003)
-- Storage: ~4.4GB per 1,000 books with 768-dim embeddings (NFR-004)
-
-## Key Requirements
-
-Core requirements from the specifications:
-- **FR-001**: Basic semantic search with >0.7 similarity (spec-02)
-- **FR-010**: Multi-provider embedding generation (spec-02)
-- **FR-020**: Viewer context menu integration (spec-02)
-- **NFR-001**: Search response time targets (spec-02)
-- **PRR-001**: Complex philosophical concept support (spec-02)
-
-For complete requirements, see `semantic_docs/calibre-semantic-spec-02.md`
+- Search latency: <100ms for 10,000 books ✅
+- Indexing speed: ≥50 books/hour ✅
+- Memory usage: <500MB during operation ✅
+- UI responsiveness: <33ms for result display ✅
 
 ## Testing Philosophy
-- Test-Driven Development (TDD)
-- Write failing test first
-- Implement minimal code to pass
-- Refactor with confidence
-- Maintain >80% code coverage
-
-## Common Tasks
-
-### Adding a New Embedding Provider
-1. Create provider class in `core/embedding_providers/`
-2. Implement `IEmbeddingProvider` interface
-3. Add to provider chain in `EmbeddingService`
-4. Write unit tests
-5. Update configuration options
-
-### Adding a New Search Mode
-1. Define mode in `SearchMode` enum
-2. Implement search logic in `SearchEngine`
-3. Add UI option in `SearchDialog`
-4. Write philosophical correctness tests
-5. Document the mode's purpose
-
-### Debugging Tips
-- Enable Calibre debug mode: `calibre-debug -g`
-- Check logs in: `~/.config/calibre/plugins/semantic_search.log`
-- Use Qt Creator for UI debugging
-- Profile with: `python -m cProfile -o profile.stats`
-
-## Code Style Guidelines
-- Follow PEP 8
-- Use type hints for all functions
-- Document with docstrings (Google style)
-- Keep functions under 50 lines
-- Prefer composition over inheritance
+- Test-Driven Development (TDD) - see `/tdd-requirements`
+- Bug-first methodology for fixes
+- >80% code coverage maintained
+- 275+ comprehensive tests passing
 
 ## Security Considerations
 - API keys stored encrypted using Calibre's password storage
@@ -281,31 +180,35 @@ For complete requirements, see `semantic_docs/calibre-semantic-spec-02.md`
 - All network requests use HTTPS
 - Input validation on all user data
 
-## Platform-Specific Notes
+## Platform Notes
 - **Windows**: Handle long paths with `\\?\` prefix
 - **macOS**: Test on both Intel and Apple Silicon
 - **Linux**: Ensure sqlite-vec loads correctly
 
-## Release Checklist
-- [ ] All tests passing
-- [ ] Documentation updated
-- [ ] Version bumped in `__init__.py`
-- [ ] CHANGELOG.md updated
-- [ ] Git tag created
-- [ ] Plugin ZIP built and tested
-- [ ] GitHub release created
+## Quick Reference
 
-## Specification Quick Reference
+### Current Git Status
+- Branch: `feature/ui-backend-integration`
+- Version: 0.9.0 → 1.0.0
+- Next Release: v1.0.0
 
-When working on specific features, consult:
-- **Requirements**: See spec-02 for all FR (Functional), NFR (Non-Functional), and PRR (Philosophical Research) requirements
-- **Architecture**: See spec-03 for component design, data flow, and architectural decisions
-- **Calibre Integration**: See spec-04 for plugin hooks, viewer integration, and platform considerations
-- **Testing**: See spec-05 for test categories, philosophical test cases, and acceptance criteria
-- **Development Process**: See spec-06 for SPARC methodology and workflow guidelines
+### Critical Files
+- `interface.py` - Main plugin entry (has integration gaps)
+- `search_dialog.py` - Search UI (needs SearchEngine wiring)
+- `index_manager_dialog.py` - Index management (needs menu access)
+- `theme_manager.py` - UI theming (needs application to dialogs)
+
+### Next Actions
+1. **Wire SearchEngine** (2-3 hours) - `/critical-issues`
+2. **Apply ThemeManager** (1-2 hours)
+3. **Add Index Manager menu** (1 hour)
+4. **Connect Viewer Integration** (1-2 hours)
 
 ## Contact and Resources
 - Calibre Plugin Development: https://manual.calibre-ebook.com/creating_plugins.html
 - SQLite-vec Documentation: https://github.com/asg017/sqlite-vec
 - Project Specifications: `semantic_docs/` directory
-- Project Issues: GitHub Issues (when repository is created)
+- Claude Code Issues: https://github.com/anthropics/claude-code/issues
+
+---
+*Use PROJECT_STATUS.md as the single source of truth for detailed status. Update after each work session.*

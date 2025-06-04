@@ -5,39 +5,41 @@ Enables AI-powered similarity search for philosophical texts
 
 from calibre.customize import InterfaceActionBase
 
-__license__ = 'GPL v3'
-__copyright__ = '2024'
-__docformat__ = 'restructuredtext en'
+__license__ = "GPL v3"
+__copyright__ = "2024"
+__docformat__ = "restructuredtext en"
 
 
 class SemanticSearchPlugin(InterfaceActionBase):
     """
     Main plugin class that Calibre loads
     """
-    name = 'Semantic Search'
-    description = 'AI-powered semantic search for philosophical texts'
-    supported_platforms = ['windows', 'osx', 'linux']
-    author = 'Calibre Semantic Search Contributors'
-    version = (0, 1, 0)  # Start at 0.1.0
+
+    name = "Semantic Search"
+    description = "AI-powered semantic search for philosophical texts"
+    supported_platforms = ["windows", "osx", "linux"]
+    author = "Calibre Semantic Search Contributors"
+    version = (1, 0, 0)  # Version 1.0.0 - Initial Release
     minimum_calibre_version = (5, 0, 0)
-    
+
     # This points to our actual implementation
-    actual_plugin = 'calibre_plugins.semantic_search.ui:SemanticSearchInterface'
-    
+    actual_plugin = "calibre_plugins.semantic_search.interface:SemanticSearchInterface"
+
     def is_customizable(self):
         """Allow user configuration"""
         return True
-        
+
     def config_widget(self):
         """Return configuration widget"""
         # Import here to avoid loading Qt at startup
         from calibre_plugins.semantic_search.config import ConfigWidget
+
         return ConfigWidget()
-        
+
     def save_settings(self, config_widget):
         """Save configuration settings"""
         config_widget.save_settings()
-        
+
     def about(self):
         """Return information about the plugin"""
         text = """

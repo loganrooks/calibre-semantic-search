@@ -155,6 +155,66 @@ class TestEmbeddingOperations:
         if len(results) > 1:
             assert results[0]['similarity'] >= results[1]['similarity']
     
+    def test_search_similar_with_excluded_books(self, db_with_data):
+        """Test searching with excluded book IDs"""
+        # Add embeddings for different books
+        emb1 = np.random.rand(768).astype(np.float32)
+        emb2 = np.random.rand(768).astype(np.float32)
+        
+        # Store chunks in different books
+        chunk1 = Chunk(
+            text="Chunk in book 1",
+            index=0,
+            book_id=1,
+            start_pos=0,
+            end_pos=15,
+            metadata={}
+        )
+        chunk2 = Chunk(
+            text="Chunk in book 2", 
+            index=0,
+            book_id=2,
+            start_pos=0,
+            end_pos=15,
+            metadata={}
+        )
+        
+        db_with_data.store_embedding(1, chunk1, emb1)
+        db_with_data.store_embedding(2, chunk2, emb2)
+        
+        # Search without exclusions
+        all_results = db_with_data.search_similar(
+            embedding=emb1,
+            limit=10
+        )
+        
+        # Should include results from both books
+        book_ids = {r['book_id'] for r in all_results}
+        assert 1 in book_ids
+        assert 2 in book_ids
+        
+        # Search with book 1 excluded
+        filtered_results = db_with_data.search_similar(
+            embedding=emb1,
+            limit=10,
+            filters={"excluded_book_ids": [1]}
+        )
+        
+        # Should only include results from book 2
+        book_ids = {r['book_id'] for r in filtered_results}
+        assert 1 not in book_ids
+        assert 2 in book_ids
+        
+        # Search with both books excluded
+        no_results = db_with_data.search_similar(
+            embedding=emb1,
+            limit=10,
+            filters={"excluded_book_ids": [1, 2]}
+        )
+        
+        # Should have no results
+        assert len(no_results) == 0
+    
     def test_get_embedding_by_id(self, db_with_data):
         """Test retrieving embedding by ID"""
         embedding = np.random.rand(768).astype(np.float32)

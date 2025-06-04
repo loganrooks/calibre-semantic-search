@@ -3,11 +3,12 @@ Unit tests for embedding service
 """
 
 import pytest
-import numpy as np
+import math
 from unittest.mock import Mock, AsyncMock, patch
 import asyncio
 import sys
 from pathlib import Path
+import importlib.util
 
 # Direct import without going through plugin __init__.py
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "calibre_plugins" / "semantic_search"))
@@ -16,6 +17,13 @@ from core.embedding_service import (
     EmbeddingService, BaseEmbeddingProvider, MockProvider,
     VertexAIProvider, OpenAIProvider, EmbeddingCache
 )
+
+# Load VectorOps directly
+vector_ops_path = Path(__file__).parent.parent.parent / "calibre_plugins" / "semantic_search" / "core" / "vector_ops.py"
+spec = importlib.util.spec_from_file_location("vector_ops", vector_ops_path)
+vector_ops_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(vector_ops_module)
+VectorOps = vector_ops_module.VectorOps
 
 
 class TestMockProvider:
@@ -33,11 +41,11 @@ class TestMockProvider:
         provider = MockProvider(dimensions=768)
         embedding = await provider.generate_embedding("test text")
         
-        assert isinstance(embedding, np.ndarray)
-        assert embedding.shape == (768,)
-        assert embedding.dtype == np.float32
-        # Check normalization
-        assert np.abs(np.linalg.norm(embedding) - 1.0) < 0.001
+        assert isinstance(embedding, list)
+        assert len(embedding) == 768
+        # Check normalization using VectorOps
+        norm = VectorOps.norm(embedding)
+        assert abs(norm - 1.0) < 0.001
         
     @pytest.mark.asyncio
     async def test_mock_deterministic(self):
@@ -48,7 +56,7 @@ class TestMockProvider:
         emb1 = await provider.generate_embedding(text)
         emb2 = await provider.generate_embedding(text)
         
-        np.testing.assert_array_equal(emb1, emb2)
+        assert emb1 == emb2  # Lists should be identical for same input
         
     @pytest.mark.asyncio
     async def test_mock_failure_mode(self):
@@ -67,12 +75,14 @@ class TestEmbeddingCache:
         cache = EmbeddingCache(max_size=3)
         
         # Test set and get
-        embedding = np.random.rand(768).astype(np.float32)
+        import random
+        random.seed(42)
+        embedding = [random.random() for _ in range(768)]
         cache.set("test", "model1", embedding)
         
         retrieved = cache.get("test", "model1")
         assert retrieved is not None
-        np.testing.assert_array_equal(retrieved, embedding)
+        assert retrieved == embedding
         
         # Test cache miss
         assert cache.get("nonexistent", "model1") is None
@@ -82,9 +92,9 @@ class TestEmbeddingCache:
         cache = EmbeddingCache(max_size=2)
         
         # Fill cache
-        emb1 = np.array([1.0])
-        emb2 = np.array([2.0])
-        emb3 = np.array([3.0])
+        emb1 = [1.0]
+        emb2 = [2.0]
+        emb3 = [3.0]
         
         cache.set("text1", "model", emb1)
         cache.set("text2", "model", emb2)
@@ -121,8 +131,8 @@ class TestEmbeddingService:
         
         embedding = await service.generate_embedding("test text")
         
-        assert isinstance(embedding, np.ndarray)
-        assert embedding.shape == (768,)
+        assert isinstance(embedding, list)
+        assert len(embedding) == 768
         assert service.last_provider == provider
         
     @pytest.mark.asyncio
@@ -160,7 +170,7 @@ class TestEmbeddingService:
         # Mock the provider to return different embedding
         with patch.object(provider, 'generate_embedding', 
                          new_callable=AsyncMock) as mock_gen:
-            mock_gen.return_value = np.ones(768, dtype=np.float32)
+            mock_gen.return_value = [1.0] * 768
             
             # Second call should return cached value
             emb2 = await service.generate_embedding("test")
@@ -169,7 +179,7 @@ class TestEmbeddingService:
             mock_gen.assert_not_called()
             
         # Should return same embedding
-        np.testing.assert_array_equal(emb1, emb2)
+        assert emb1 == emb2  # Lists should be identical for same input
         
     @pytest.mark.asyncio
     async def test_batch_generation(self):
@@ -181,11 +191,11 @@ class TestEmbeddingService:
         embeddings = await service.generate_batch(texts)
         
         assert len(embeddings) == 3
-        assert all(isinstance(emb, np.ndarray) for emb in embeddings)
-        assert all(emb.shape == (768,) for emb in embeddings)
+        assert all(isinstance(emb, list) for emb in embeddings)
+        assert all(len(emb) == 768 for emb in embeddings)
         
         # Check that different texts get different embeddings
-        assert not np.array_equal(embeddings[0], embeddings[1])
+        assert embeddings[0] != embeddings[1]
         
     @pytest.mark.asyncio
     async def test_batch_with_cache(self):
@@ -200,8 +210,10 @@ class TestEmbeddingService:
         with patch.object(provider, 'generate_batch', 
                          new_callable=AsyncMock) as mock_batch:
             # Mock should only be called with uncached texts
+            import random
+            random.seed(123)
             mock_batch.return_value = [
-                np.random.rand(768).astype(np.float32) for _ in range(2)
+                [random.random() for _ in range(768)] for _ in range(2)
             ]
             
             texts = ["text1", "text2", "text3"]

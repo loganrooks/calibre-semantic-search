@@ -485,9 +485,17 @@ See BACKUP_PLANS.md for:
 - [ ] SPARC analysis for complex decisions
 - [ ] TDD implementation
 - [ ] Update tests
-- [ ] Commit with meaningful message
-- [ ] Update CHANGELOG.md
+- [ ] **Before every commit**: Update both PROJECT_STATUS.md and CHANGELOG.md
+- [ ] Commit with meaningful message including documentation updates
 - [ ] Review tomorrow's tasks
+
+### Workspace Context Tracking Rules
+- **Both PROJECT_STATUS.md and CHANGELOG.md**: Update before every commit (feature/requirement/milestone complete)
+- **Perfect Alignment**: Documentation always in sync with code changes
+- **Context Preservation**: PROJECT_STATUS.md serves as single source of truth for current state
+- **History Tracking**: CHANGELOG.md captures what was accomplished with each commit
+- **AI/Developer Handoffs**: Documentation always reflects current state due to commit-level updates
+- **Traceability**: Every commit has associated documentation explaining what was accomplished
 
 ### Phase Completion Criteria
 - All tests passing

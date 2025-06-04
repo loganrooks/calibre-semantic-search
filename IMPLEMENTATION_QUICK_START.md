@@ -175,12 +175,37 @@ except:
 
 ## 📈 Progress Tracking
 
-At end of each day:
-1. Update CHANGELOG.md
-2. Note what worked/didn't work
-3. Adjust timeline if needed
-4. Commit all changes
-5. Plan tomorrow's tasks
+### Before Every Commit (Feature/Requirement/Milestone Complete):
+1. **Update PROJECT_STATUS.md** - Critical for workspace context tracking
+   - Mark completed items as ✅ 
+   - Update completion percentages
+   - Note any blockers or issues discovered
+   - Adjust priorities if needed
+
+2. **Update CHANGELOG.md** - Document what was accomplished
+   - Add entry for what was added/changed/fixed
+   - Reference requirement IDs if applicable
+   - Note any breaking changes or important updates
+
+3. **Commit with both documentation updates**
+   - Include both PROJECT_STATUS.md and CHANGELOG.md in commit
+   - Use conventional commit format
+   - Reference requirement/issue numbers
+
+### At End of Each Day:
+4. **Review PROJECT_STATUS.md** - Ensure it reflects current reality
+5. **Note what worked/didn't work** - Learning capture
+6. **Adjust timeline if needed** - Realistic planning
+7. **Plan tomorrow's tasks** - Clear next steps
+8. **Ensure all work is committed** - Clean git state
+
+### Workspace Context Tracking Rules:
+- **Both PROJECT_STATUS.md and CHANGELOG.md updated before every commit**
+- PROJECT_STATUS.md is the **single source of truth** for current status
+- CHANGELOG.md tracks the history of what was accomplished
+- This ensures documentation is never out of sync with code
+- Perfect traceability between commits and documentation
+- Other developers/AI assistants can quickly understand current state
 
 ---
 

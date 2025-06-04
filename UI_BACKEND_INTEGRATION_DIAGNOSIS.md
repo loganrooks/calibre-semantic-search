@@ -4,10 +4,11 @@
 **Time**: Generated at request  
 **Plugin Version**: v0.9.0 → v1.0.0  
 **Analysis Scope**: Critical UI-backend integration failures  
+**Revision**: Updated with Calibre source code verification
 
 ## 🎯 Executive Summary
 
-After comprehensive codebase analysis, I've identified **five critical architectural issues** causing the UI-backend integration problems described by the user. These issues explain:
+After comprehensive codebase analysis and verification against Calibre's source code, I've identified **five critical architectural issues** causing the UI-backend integration problems described by the user. These issues explain:
 
 - ❌ "Test Connection" failing with "can't connect to plugin instance" 
 - ❌ Multiple conflicting model selection systems
@@ -39,27 +40,46 @@ if not plugin:
     QMessageBox.critical(self, "Test Connection", "Unable to access plugin instance.")
 ```
 
-**Root Cause**: When Calibre opens config dialog via `interface.py:492`:
-```python
-def show_configuration(self):
-    self.interface_action_base_plugin.do_user_config(self.gui)
-```
+**Root Cause**: ConfigWidget is created by `SemanticSearchPlugin` (the InterfaceActionBase wrapper) but needs access to `SemanticSearchInterface` (which has `get_embedding_service()`). These are two different objects in Calibre's plugin architecture.
 
-The ConfigWidget is instantiated by Calibre's framework without proper plugin reference linking.
+**Architectural Context** (verified from Calibre source):
+- `SemanticSearchPlugin` inherits from `InterfaceActionBase`
+- It creates ConfigWidget via `config_widget()` method
+- The actual interface (`SemanticSearchInterface`) is available as `self.actual_plugin_`
+- Calibre's `do_user_config()` creates its own dialog wrapper and doesn't expose plugin references
 
 **Impact**: 
 - Users cannot test cloud embedding providers
 - No way to validate API credentials
 - Blocks validation of Vertex AI, OpenAI, Azure configurations
 
-**Proposed Fix**:
+**Corrected Fix**:
 ```python
-# In interface.py:show_configuration()
-def show_configuration(self):
-    """Show the configuration dialog"""
-    config_dialog = self.interface_action_base_plugin.config_widget()
-    config_dialog.plugin = self  # Explicit reference
-    config_dialog.exec_()
+# In __init__.py - SemanticSearchPlugin class
+def config_widget(self):
+    """Return configuration widget"""
+    from calibre_plugins.semantic_search.config import ConfigWidget
+    cw = ConfigWidget()
+    
+    # Pass the actual interface action if it exists
+    # actual_plugin_ is the SemanticSearchInterface instance
+    if hasattr(self, 'actual_plugin_') and self.actual_plugin_:
+        cw.plugin_interface = self.actual_plugin_
+    return cw
+
+# In config.py - ConfigWidget._test_connection()
+def _test_connection(self):
+    """Test API connection"""
+    # Use the interface reference passed during creation
+    if hasattr(self, 'plugin_interface') and self.plugin_interface:
+        service = self.plugin_interface.get_embedding_service()
+        # ... rest of test connection logic
+    else:
+        QMessageBox.critical(
+            self,
+            "Test Connection",
+            "Plugin interface not available. Please restart Calibre and try again."
+        )
 ```
 
 ---
@@ -102,9 +122,14 @@ User saves settings: embedding_model = "mock-embedding" (OVERWRITES!)
 Backend uses: MockProvider instead of VertexAI
 ```
 
-**Proposed Fix**: Use separate config keys:
-- AI Provider tab: `"embedding_model"` (actual provider model)
-- Indexing tab: `"default_embedding_model"` (UI display preference)
+**Corrected Fix**: Remove the model selection from Indexing tab entirely. The embedding model should only be configured in the AI Provider tab where it logically belongs.
+
+```python
+# In config.py - _create_indexing_tab()
+# DELETE lines 329-332 that create self.model_combo
+# DELETE line 584 that saves model_combo value
+# The Indexing tab should only handle chunking/processing settings
+```
 
 ---
 
@@ -194,6 +219,30 @@ def _initialize_services(self):
 4. User later changes config to Vertex AI
 5. **Services never re-initialized with new config!**
 
+**Enhanced Fix with Service Registry Pattern**:
+```python
+# In interface.py
+class ServiceRegistry:
+    """Manage service lifecycle with configuration changes"""
+    def __init__(self, plugin):
+        self.plugin = plugin
+        self._services = {}
+        self._config_hash = None
+        
+    def get_embedding_service(self):
+        """Get or create embedding service with current config"""
+        current_hash = self._get_config_hash()
+        if 'embedding' not in self._services or current_hash != self._config_hash:
+            self._services['embedding'] = self._create_embedding_service()
+            self._config_hash = current_hash
+        return self._services['embedding']
+        
+    def clear_services(self):
+        """Clear all services on config change"""
+        self._services.clear()
+        self._config_hash = None
+```
+
 ---
 
 ### **Issue #5: Database Schema vs UI Mismatch** 🗃️ HIGH
@@ -208,24 +257,39 @@ provider = index_info.get('provider', 'unknown')      # Usually 'unknown'
 model = index_info.get('model_name', 'unknown')       # Usually 'unknown'
 ```
 
-**Root Cause**: Database schema may not properly store/retrieve index metadata.
+**Root Cause**: When books are indexed, the system isn't storing the provider/model metadata in the indexes table.
 
 **Evidence**: All books show "legacy" provider and "unknown" model instead of actual values.
+
+**Required Fix**:
+```python
+# In IndexingService.index_book()
+index_metadata = {
+    'book_id': book_id,
+    'provider': self.embedding_service.provider_name,
+    'model_name': self.embedding_service.model_name,
+    'dimensions': self.embedding_service.dimensions,
+    'chunk_size': self.text_processor.chunk_size,
+    'created_at': datetime.now(),
+    # ... other metadata
+}
+self.embedding_repo.create_or_update_index(book_id, index_metadata)
+```
 
 ## 🎯 Proposed Solution Architecture
 
 ### **Phase 1: Critical Fixes (2-3 hours)**
 
 #### Fix 1.1: Test Connection Plugin Reference
-**File**: `interface.py`
-**Change**: Modify `show_configuration()` to pass explicit plugin reference
-**Effort**: 15 minutes
+**File**: `__init__.py`
+**Change**: Pass interface reference to ConfigWidget
+**Effort**: 30 minutes
 **Impact**: Enables cloud provider testing
 
-#### Fix 1.2: Separate Configuration Keys  
+#### Fix 1.2: Remove Conflicting Model Selection  
 **File**: `config.py`
-**Change**: Use different config keys for AI Provider vs Indexing tabs
-**Effort**: 30 minutes
+**Change**: Remove model selection from Indexing tab entirely
+**Effort**: 15 minutes
 **Impact**: Eliminates model selection conflicts
 
 #### Fix 1.3: Fix Table Editing
@@ -242,21 +306,21 @@ model = index_info.get('model_name', 'unknown')       # Usually 'unknown'
 
 ### **Phase 2: Data Consistency (2-3 hours)**
 
-#### Fix 2.1: Database Migration
-**Files**: `data/database.py`, `data/repositories.py`
-**Change**: Update existing records with proper provider/model metadata
+#### Fix 2.1: Store Index Metadata
+**Files**: `core/indexing_service.py`, `data/repositories.py`
+**Change**: Store provider/model metadata when creating indexes
 **Effort**: 1.5 hours
 **Impact**: Correct "legacy/unknown" data display
 
-#### Fix 2.2: Lazy Service Initialization
+#### Fix 2.2: Service Registry Pattern
 **File**: `interface.py`
-**Change**: Initialize services only when needed, with current config
+**Change**: Implement service registry with config change detection
 **Effort**: 1 hour  
 **Impact**: Services always use latest configuration
 
 #### Fix 2.3: Config Change Propagation
 **Files**: `config.py`, `interface.py`
-**Change**: Trigger service re-initialization on config save
+**Change**: Clear service cache on config save
 **Effort**: 30 minutes
 **Impact**: Immediate config reflection in backend
 
@@ -282,9 +346,9 @@ model = index_info.get('model_name', 'unknown')       # Usually 'unknown'
 3. Remove duplicate statistics
 
 ### **High Priority (This Week - 4 hours)**
-1. Separate configuration systems
+1. Remove conflicting model selection from Indexing tab
 2. Fix database metadata storage
-3. Implement lazy service initialization
+3. Implement service registry pattern
 
 ### **Medium Priority (Next Week - 2 hours)**  
 1. Configuration change propagation
@@ -331,7 +395,7 @@ model = index_info.get('model_name', 'unknown')       # Usually 'unknown'
 ```bash
 # Use TDD approach for each fix
 /project:fix-bug "Test Connection plugin reference chain broken"
-/project:fix-bug "Multiple configuration systems overwriting each other" 
+/project:fix-bug "Remove duplicate model selection from Indexing tab" 
 /project:fix-bug "Index Manager table allows user editing"
 /project:fix-bug "Duplicate statistics display in Index Manager"
 ```
@@ -351,6 +415,6 @@ pytest tests/ui/test_index_management_ui.py
 ---
 
 **Report Generated**: 2025-06-03  
-**Analysis Confidence**: High (based on direct codebase examination)  
+**Analysis Confidence**: Very High (verified against Calibre source code)  
 **Estimated Resolution Time**: 6-8 hours total development work  
 **Next Action**: Implement Phase 1 critical fixes for immediate user relief

@@ -198,3 +198,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - First alpha release for testing
 - Requires Calibre 5.0 or higher
 - SQLite-vec extension recommended for optimal performance
+
+### Git Debt Resolution (2025-06-03) - Organized Accumulated Changes
+- **Command System**: Implemented comprehensive git-debt management and requirement tracking (680c95a)
+- **TDD Planning**: Created chunking strategies implementation plan (8afd8bf) 
+- **Documentation**: Updated project documentation with git-debt management (260f6c7)
+- **UI Features**: Implemented multi-index management and embedding configuration (4bef39b)
+- **Backend Fixes**: Enhanced database operations and debugging capabilities (613cf0c)
+
+Note: These changes were committed as part of git debt cleanup. Original development
+occurred over the past 27 hours to 5 days but was organized into logical commits
+following conventional commit format with proper categorization.

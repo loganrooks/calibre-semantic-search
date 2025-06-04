@@ -31,24 +31,26 @@ class SemanticSearchDB:
         Args:
             db_path: Path to database file
         """
-        logger.info(f"SemanticSearchDB.__init__ called with path: {db_path}")
+        print(f"[SemanticSearchDB] Initializing with path: {db_path}")
         self.db_path = Path(db_path)
-        logger.info(f"Resolved database path: {self.db_path}")
-        logger.info(f"Database file exists: {self.db_path.exists()}")
+        print(f"[SemanticSearchDB] Resolved path: {self.db_path}")
+        print(f"[SemanticSearchDB] File exists: {self.db_path.exists()}")
         
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        logger.info(f"Created parent directory: {self.db_path.parent}")
+        print(f"[SemanticSearchDB] Parent directory: {self.db_path.parent}")
 
         # Thread-local storage for connections
         self._local = threading.local()
 
         # Initialize database
-        logger.info("About to call _init_database()")
+        print("[SemanticSearchDB] Calling _init_database()")
         try:
             self._init_database()
-            logger.info("_init_database() completed successfully")
+            print("[SemanticSearchDB] Database initialization complete")
         except Exception as e:
-            logger.error(f"_init_database() failed: {e}")
+            print(f"[SemanticSearchDB] ERROR: Database init failed: {e}")
+            import traceback
+            print(traceback.format_exc())
             raise
 
     @property
@@ -113,22 +115,26 @@ class SemanticSearchDB:
 
     def _init_database(self):
         """Initialize database schema"""
+        print("[SemanticSearchDB] Starting _init_database()")
         try:
             with self.transaction() as conn:
+                print("[SemanticSearchDB] Got database connection")
                 # Check if we need to create or migrate schema
                 current_version = self._get_schema_version(conn)
-                logger.info(f"Database schema version: {current_version}")
+                print(f"[SemanticSearchDB] Current schema version: {current_version}")
 
                 if current_version == 0:
-                    logger.info("Creating new database schema")
+                    print("[SemanticSearchDB] Creating new database schema")
                     self._create_schema(conn)
                 elif current_version < self.SCHEMA_VERSION:
-                    logger.info(f"Migrating schema from {current_version} to {self.SCHEMA_VERSION}")
+                    print(f"[SemanticSearchDB] Migrating schema from {current_version} to {self.SCHEMA_VERSION}")
                     self._migrate_schema(conn, current_version)
                 else:
-                    logger.info("Database schema is up to date")
+                    print("[SemanticSearchDB] Database schema is up to date")
         except Exception as e:
-            logger.error(f"Database initialization failed: {e}")
+            print(f"[SemanticSearchDB] ERROR in _init_database: {e}")
+            import traceback
+            print(traceback.format_exc())
             raise
 
     def _get_schema_version(self, conn: sqlite3.Connection) -> int:
@@ -141,11 +147,11 @@ class SemanticSearchDB:
 
     def _create_schema(self, conn: sqlite3.Connection):
         """Create initial database schema"""
-        logger.info("Creating database schema...")
+        print("[SemanticSearchDB] _create_schema() called")
         
         try:
             # Schema version tracking
-            logger.info("Creating schema_version table")
+            print("[SemanticSearchDB] Creating schema_version table")
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS schema_version (
@@ -153,9 +159,10 @@ class SemanticSearchDB:
                 )
             """
             )
+            print("[SemanticSearchDB] schema_version table created")
 
             # Books tracking table
-            logger.info("Creating books table")
+            print("[SemanticSearchDB] Creating books table")
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS books (
@@ -172,9 +179,10 @@ class SemanticSearchDB:
                 )
             """
             )
+            print("[SemanticSearchDB] books table created")
 
             # Indexes table for multiple embedding indexes per book
-            logger.info("Creating indexes table")
+            print("[SemanticSearchDB] Creating indexes table")
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS indexes (
@@ -194,6 +202,7 @@ class SemanticSearchDB:
                 )
             """
             )
+            print("[SemanticSearchDB] indexes table created")
 
             # Chunks table
             logger.info("Creating chunks table")
@@ -811,6 +820,41 @@ class SemanticSearchDB:
         finally:
             conn.close()
 
+    def force_create_tables(self):
+        """Force creation of all tables - for debugging"""
+        print("[SemanticSearchDB] FORCE creating all tables")
+        try:
+            conn = self._conn
+            
+            # Create all tables without checking if they exist
+            print("[SemanticSearchDB] Force creating indexes table...")
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS indexes (
+                    index_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    book_id INTEGER NOT NULL,
+                    provider TEXT NOT NULL,
+                    model_name TEXT NOT NULL,
+                    dimensions INTEGER NOT NULL,
+                    chunk_size INTEGER NOT NULL,
+                    chunk_overlap INTEGER DEFAULT 0,
+                    total_chunks INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    metadata TEXT
+                )
+            """)
+            conn.commit()
+            print("[SemanticSearchDB] indexes table force-created")
+            
+            # Verify it was created
+            tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='indexes'").fetchall()
+            print(f"[SemanticSearchDB] indexes table exists: {len(tables) > 0}")
+            
+        except Exception as e:
+            print(f"[SemanticSearchDB] ERROR in force_create_tables: {e}")
+            import traceback
+            print(traceback.format_exc())
+    
     def verify_schema(self) -> Dict[str, Any]:
         """Verify database schema and return status"""
         try:

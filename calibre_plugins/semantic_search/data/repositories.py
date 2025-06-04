@@ -79,16 +79,17 @@ class EmbeddingRepository(IEmbeddingRepository):
         Args:
             db_path: Path to database file
         """
-        logger.info(f"EmbeddingRepository.__init__ called with path: {db_path}")
-        logger.info(f"Path type: {type(db_path)}")
+        print(f"[EmbeddingRepository] Initializing with path: {db_path}")
+        print(f"[EmbeddingRepository] Path type: {type(db_path)}")
         
         # Ensure we have a Path object
         if isinstance(db_path, str):
             db_path = Path(db_path)
-            logger.info(f"Converted string path to Path object: {db_path}")
+            print(f"[EmbeddingRepository] Converted to Path: {db_path}")
             
+        print("[EmbeddingRepository] Creating SemanticSearchDB...")
         self.db = SemanticSearchDB(db_path)
-        logger.info("SemanticSearchDB created successfully")
+        print("[EmbeddingRepository] SemanticSearchDB created successfully")
 
     async def store_embedding(
         self, book_id: int, chunk: Chunk, embedding: List[float]

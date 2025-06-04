@@ -263,18 +263,24 @@ class IndexingService:
 
     async def get_library_statistics(self) -> Dict[str, Any]:
         """Get statistics about the indexed library"""
+        print("[IndexingService] Getting library statistics...")
+        
         # Get basic stats from repository
         stats = self.embedding_repo.get_statistics()
+        print(f"[IndexingService] Repository stats: {stats}")
 
         # Add Calibre library stats
         all_book_ids = self.calibre_repo.get_all_book_ids()
         stats["total_library_books"] = len(all_book_ids)
+        print(f"[IndexingService] Total library books: {stats['total_library_books']}")
+        
         stats["indexing_percentage"] = (
-            (stats["indexed_books"] / stats["total_library_books"] * 100)
+            (stats.get("indexed_books", 0) / stats["total_library_books"] * 100)
             if stats["total_library_books"] > 0
             else 0
         )
-
+        
+        print(f"[IndexingService] Final stats: {stats}")
         return stats
 
     def estimate_indexing_time(self, book_count: int) -> float:

@@ -554,12 +554,15 @@ Last Indexed: {status.get('last_indexed', 'Never')}"""
             logger.info(f"Database file exists: {os.path.exists(self.db_path)}")
             
             # Initialize database and repositories
-            logger.info(f"Initializing database at: {self.db_path}")
+            print(f"[Interface] Initializing database at: {self.db_path}")
             try:
+                print("[Interface] Creating EmbeddingRepository...")
                 self.embedding_repo = EmbeddingRepository(self.db_path)
-                logger.info("EmbeddingRepository created successfully")
+                print("[Interface] EmbeddingRepository created successfully")
             except Exception as e:
-                logger.error(f"Failed to create EmbeddingRepository: {e}")
+                print(f"[Interface] ERROR: Failed to create EmbeddingRepository: {e}")
+                import traceback
+                print(traceback.format_exc())
                 self.embedding_repo = None
             
             # Try multiple ways to get Calibre database

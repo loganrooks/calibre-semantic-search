@@ -1,8 +1,8 @@
 # Project Status: Calibre Semantic Search Plugin
 
-**Last Updated**: 2025-06-02 (GREEN Phase Implementation Complete)
-**Version**: 0.8.0 → 1.0.0  
-**Overall Completion**: 85%
+**Last Updated**: 2025-06-03 (Multi-Index UI & Documentation Optimization)
+**Version**: 0.9.0 → 1.0.0  
+**Overall Completion**: 90%
 
 ## 🚨 Quick Status Overview
 
@@ -50,7 +50,40 @@ Docs:        ███████████████████░ 95%  �
    - ❌ Still using hard-coded provider chain
    - **Fix**: Replace hard-coded providers with plugin system
 
-### RECENTLY IMPLEMENTED (2025-06-02 GREEN Phase)
+### RECENTLY IMPLEMENTED (2025-06-03 Multi-Index & Docs)
+
+1. **Multi-Index UI Support** ✅ IMPLEMENTED
+   - Enhanced IndexManagerDialog to show Provider, Model, Dimensions, Chunk Size
+   - index_manager_dialog.py:126-136 shows detailed index information per book
+   - Fixed confusing statistics with clear Library vs Index separation
+   - ❌ BUT: Still not accessible from main menu
+
+2. **Embedding Configuration UI** ✅ IMPLEMENTED
+   - Added model selection dropdown with provider-specific options
+   - config.py:330-340 includes dimensions spinner and model combo
+   - Dynamic UI updates based on selected provider
+   - ❌ BUT: Not yet wired to actual indexing process
+
+3. **Documentation Optimization** ✅ IMPLEMENTED  
+   - Reduced CLAUDE.md from 1171 to 206 lines (82% reduction)
+   - Created comprehensive custom command system with 22 commands:
+     - 11 project-specific commands for Calibre plugin development
+     - 11 general workflow commands for SPARC+TDD orchestration
+   - Implemented anti-hallucination measures in workflow commands
+   - Added `/project:launch-task` orchestrator for complete development workflow
+   - Created `/project:list-commands` for easy command discovery
+
+4. **Database Robustness** ✅ FIXED
+   - Added litellm availability check with MockProvider fallback
+   - Enhanced database initialization with force_create_tables()
+   - Changed to print() statements for Calibre console visibility
+
+5. **Chunking Strategy Planning** ✅ PLANNED
+   - Created comprehensive TDD plan for advanced chunking
+   - Strategy pattern design for sentence/paragraph/semantic chunking
+   - UI prepared with chunking strategy dropdown
+
+### PREVIOUSLY IMPLEMENTED (2025-06-02 GREEN Phase)
 
 6. **Metadata Extraction Bug** ✅ IMPLEMENTED
    - Enhanced SearchEngine with CalibreRepository integration
@@ -326,37 +359,59 @@ interface.py         - Main plugin entry (has placeholders)
 
 ## 🎯 Next Actions (Integration Focus)
 
-### ⚡ Immediate (Next Session - 4-6 hours)
+### ⚡ Immediate Priority (Next Session - 4-6 hours to v1.0)
+
 1. **Wire Search Engine** ❌ CRITICAL BLOCKER (2-3 hours)
    - File: `search_dialog.py:224` 
-   - Action: Replace placeholder with `self.plugin.get_search_engine().search()`
-   - Impact: Users can actually search (core feature!)
+   - Action: Replace placeholder with actual search implementation
+   - Code: `results = await self.plugin.get_search_engine().search(query, mode, scope, filters)`
+   - Impact: Core search functionality becomes available to users
 
-2. **Apply Theme Manager** ❌ CRITICAL UI (1-2 hours)  
+2. **Apply Theme Manager** ❌ CRITICAL UI (30 minutes)  
    - File: `search_dialog.py:_setup_ui()`
-   - Action: Add `self.setStyleSheet(ThemeManager().generate_complete_stylesheet())`
-   - Impact: UI respects Calibre's theme colors
+   - Action: Import and apply ThemeManager stylesheet
+   - Code: `self.setStyleSheet(ThemeManager().generate_complete_stylesheet())`
+   - Impact: UI respects Calibre's light/dark theme settings
 
-3. **Add Index Manager Access** ❌ HIGH (1 hour)
+3. **Add Index Manager Menu** ❌ HIGH (30 minutes)
    - File: `interface.py:genesis()`
-   - Action: Add "Manage Index" menu item → IndexManagerDialog
-   - Impact: Users can manage their search index
+   - Action: Create menu item that opens IndexManagerDialog
+   - Code: Add action to menu, connect to `self.show_index_manager()`
+   - Impact: Users can access index management features
 
-4. **Enable Viewer Navigation** ❌ HIGH (1-2 hours)
+4. **Wire Viewer Integration** ❌ HIGH (1 hour)
    - File: `interface.py:_inject_viewer_menu()`
-   - Action: Call ViewerIntegration.navigate_to_chunk()
-   - Impact: Users can navigate from search to book location
+   - Action: Import ViewerIntegration and add context menu items
+   - Code: Create menu actions, connect to ViewerIntegration methods
+   - Impact: Context menu in viewer for semantic search
 
-### Tomorrow (2-3 hours)
-5. **Integrate Plugin System** (3 hours)
-   - Replace hard-coded providers with PluginManager
-   - Users can add custom embedding providers
+### Secondary Priority (After v1.0)
 
-### This Week  
-6. **Polish Integration** (1-2 days)
-   - Add AutoCompleteScope to search dialog
-   - Convert to Calibre job system
-   - Final testing and bug fixes
+5. **Wire New Configuration Options** (2 hours)
+   - Connect embedding dimensions setting to indexing service
+   - Use selected model from config in embedding generation
+   - Pass chunk strategy selection to text processor
+
+6. **Integrate Plugin System** (3 hours)
+   - Replace hard-coded provider chain with PluginManager
+   - Allow dynamic provider discovery and loading
+
+7. **Implement Multi-Index Workflows** (1 day)
+   - Add index selection to search dialog
+   - Enable creating multiple indexes per book
+   - Implement index compatibility checking
+
+### Future Enhancements (v1.1+)
+
+8. **Advanced Chunking Strategies** (Following TDD plan)
+   - Implement sentence-based chunking
+   - Add paragraph-based chunking
+   - Develop semantic chunking with NLP
+
+9. **Performance & Polish**
+   - Add AutoCompleteScope widget
+   - Convert to Calibre ThreadedJob system
+   - Implement search history
 
 ## 📊 Summary: GREEN Phase Complete, Integration Phase Next
 

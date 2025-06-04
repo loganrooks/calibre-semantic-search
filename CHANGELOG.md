@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (2025-06-03) - Multi-Index Support & Documentation
+- **Multi-Index UI Enhancements**
+  - Enhanced IndexManagerDialog to display Provider, Model, Dimensions, Chunk Size, Created date per index
+  - Fixed confusing statistics display with clear separation of "Library Statistics" vs "Index Statistics"
+  - Added support for displaying multiple indexes per book in the management interface
+  
+- **Embedding Configuration**
+  - Added comprehensive embedding configuration UI in indexing settings tab
+  - Dynamic model selection dropdown that updates based on selected provider
+  - Embedding dimensions spinner (256-4096) with provider-specific defaults
+  - Chunking strategy dropdown with planned options (Fixed Size, Sentence-based, Paragraph-based, Semantic)
+  
+- **Documentation Optimization & Development Workflow System**
+  - Reduced CLAUDE.md from 1171 to 206 lines (82% reduction) for better maintainability
+  - Created comprehensive custom command system with 22 commands:
+    - Project-specific commands for Calibre plugin tasks
+    - General development workflow commands with SPARC+TDD orchestration
+    - Anti-hallucination measures built into workflow commands
+  - Key commands include:
+    - `/project:launch-task` - Complete development workflow orchestrator
+    - `/project:sparc-analyze` - Thorough SPARC analysis framework
+    - `/project:tdd-cycle` - TDD implementation with verification checkpoints
+    - `/project:health-check` - Comprehensive workspace health assessment
+    - `/project:list-commands` - Discover all available commands
+  - Transformed documentation from static reference to interactive development assistant
+  
+- **Database Robustness**
+  - Added litellm availability check with graceful fallback to MockProvider
+  - Enhanced database initialization with force_create_tables() for debugging
+  - Changed logging to print() statements for visibility in Calibre console
+  
+- **Planning & Design**
+  - Created comprehensive TDD plan for advanced chunking strategies
+  - Designed Strategy pattern for extensible chunking implementations
+  - Prepared UI infrastructure for future chunking strategy selection
+
 ### Added (2025-06-02) - GREEN Phase Implementation Complete
 - **Major Feature Implementation** (Components built but need integration)
   - Enhanced SearchEngine with metadata enrichment - fixes "Unknown Author. Unknown." bug

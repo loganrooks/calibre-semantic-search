@@ -113,13 +113,14 @@ class ThemeManager:
         """Get style for description labels"""
         return f"QLabel {{ color: {ThemeManager.get_muted_text_color()}; font-size: 10pt; }}"
     
-    def get_result_card_style(self) -> str:
+    @staticmethod
+    def get_result_card_style() -> str:
         """Get style for result cards"""
-        bg_color = self.get_base_bg_color()
-        text_color = self.get_text_color()
-        border_color = self.get_border_color()
-        hover_bg = self.get_alternate_bg_color()
-        hover_border = self.get_hover_border_color()
+        bg_color = ThemeManager.get_base_bg_color()
+        text_color = ThemeManager.get_text_color()
+        border_color = ThemeManager.get_border_color()
+        hover_bg = ThemeManager.get_alternate_bg_color()
+        hover_border = ThemeManager.get_hover_border_color()
         
         style = f"""
             background-color: {bg_color};

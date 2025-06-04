@@ -123,11 +123,12 @@ class IndexManagerDialog(QDialog):
         
         books_layout.addLayout(controls_layout)
         
-        # Books table (renamed for tests)
+        # Books table with multi-index support
         self.book_index_table = QTableWidget()
-        self.book_index_table.setColumnCount(6)
+        self.book_index_table.setColumnCount(9)
         self.book_index_table.setHorizontalHeaderLabels([
-            "Book ID", "Title", "Authors", "Chunks", "Status", "Last Indexed"
+            "Book ID", "Title", "Authors", "Provider", "Model", 
+            "Dimensions", "Chunks", "Chunk Size", "Created"
         ])
         self.book_index_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.book_index_table.setAlternatingRowColors(True)
@@ -135,10 +136,12 @@ class IndexManagerDialog(QDialog):
         self.book_index_table.setContextMenuPolicy(Qt.CustomContextMenu)  # For tests
         self.book_index_table.customContextMenuRequested.connect(self._show_context_menu)
         
-        # Adjust column widths
+        # Adjust column widths for new layout
         header = self.book_index_table.horizontalHeader()
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # Title
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)  # Authors
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)  # Authors
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Provider
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  # Model
         
         books_layout.addWidget(self.book_index_table)
         
@@ -208,30 +211,44 @@ class IndexManagerDialog(QDialog):
             finally:
                 loop.close()
             
-            # Update statistics display
-            stats_text = f"""
-Total Books in Library: {stats.get('total_library_books', stats.get('total_books', 0))}
-Indexed Books: {stats.get('indexed_books', 0)}
-Total Chunks: {stats.get('total_chunks', 0)}
-Average Chunks per Book: {stats.get('avg_chunks_per_book', 0):.1f}
-Books with Errors: {stats.get('error_count', 0)}
-Index Coverage: {stats.get('indexing_percentage', stats.get('coverage_percent', 0)):.1f}%
+            # Update statistics display with clear separation
+            # Library Statistics
+            library_stats_text = f"""<b>Library Statistics</b>
+Total Books in Library: {stats.get('total_library_books', 0)}
+Books with Indexes: {stats.get('indexed_books', 0)}
+Index Coverage: {stats.get('indexing_percentage', 0):.1f}%
 """
+            
+            # Index Statistics  
+            index_stats_text = f"""<b>Index Statistics</b>
+Total Indexes: {stats.get('total_indexes', stats.get('indexed_books', 0))}
+Total Chunks: {stats.get('total_chunks', 0)}
+Database Size: {self._format_size(stats.get('database_size', 0))}
+"""
+            
+            stats_text = library_stats_text + "\n" + index_stats_text
             self.stats_label.setText(stats_text.strip())
             
             # Update storage information
             storage_info = self._calculate_storage()
-            storage_text = f"""
+            storage_text = f"""<b>Storage Information</b>
 Database Location: {storage_info['db_path']}
-Database Size: {self._format_size(storage_info['db_size'])}
-Embedding Dimensions: {storage_info['embedding_dims']}
-Estimated Storage per Book: {self._format_size(storage_info['avg_book_size'])}
+Default Embedding Dimensions: {storage_info['embedding_dims']}
 """
             self.storage_label.setText(storage_text.strip())
             
             # Debug database state first
             db_status = self.plugin.debug_database_state()
-            logger.info(f"Database debug status: {db_status}")
+            print(f"[IndexManagerDialog] Database debug status: {db_status}")
+            
+            # Force create tables if missing
+            if not db_status.get('indexes_table_exists', False):
+                print("[IndexManagerDialog] indexes table missing, forcing creation...")
+                if hasattr(self.plugin, 'embedding_repo') and self.plugin.embedding_repo:
+                    self.plugin.embedding_repo.db.force_create_tables()
+                    # Re-check status
+                    db_status = self.plugin.debug_database_state()
+                    print(f"[IndexManagerDialog] After force create: {db_status}")
             
             # Load indexed books
             self._load_indexed_books_from_repo()
@@ -297,53 +314,93 @@ Estimated Storage per Book: {self._format_size(storage_info['avg_book_size'])}
             # Get indexing service and repos
             indexing_service = self.plugin.get_indexing_service()
             if not indexing_service:
-                logger.warning("No indexing service available")
+                print("[IndexManagerDialog] No indexing service available")
                 return
                 
             # Get list of indexed book IDs
             indexed_book_ids = indexing_service.embedding_repo.get_books_with_indexes()
-            logger.info(f"Found {len(indexed_book_ids)} indexed books: {indexed_book_ids}")
+            print(f"[IndexManagerDialog] Found {len(indexed_book_ids)} books with indexes")
             
             if not indexed_book_ids:
-                logger.warning("No indexed books found")
+                print("[IndexManagerDialog] No indexed books found")
                 return
             
+            # For each book, get all its indexes
             for book_id in indexed_book_ids:
                 try:
                     # Get book metadata from Calibre
                     metadata = indexing_service.calibre_repo.get_book_metadata(book_id)
                     
-                    # Get chunk count from repository
+                    # Get all indexes for this book
                     indexes = indexing_service.embedding_repo.get_indexes_for_book(book_id)
-                    chunk_count = len(indexes)
                     
-                    logger.info(f"Book {book_id}: {metadata.get('title', 'Unknown')}, chunks: {chunk_count}")
-                    
-                    # Add row to table
-                    row = self.book_index_table.rowCount()
-                    self.book_index_table.insertRow(row)
-                    
-                    # Book ID
-                    self.book_index_table.setItem(row, 0, QTableWidgetItem(str(book_id)))
-                    
-                    # Title
-                    title = metadata.get('title', 'Unknown')
-                    self.book_index_table.setItem(row, 1, QTableWidgetItem(title))
-                    
-                    # Authors
-                    authors = metadata.get('authors', [])
-                    authors_str = ', '.join(authors) if authors else 'Unknown'
-                    self.book_index_table.setItem(row, 2, QTableWidgetItem(authors_str))
-                    
-                    # Chunks
-                    self.book_index_table.setItem(row, 3, QTableWidgetItem(str(chunk_count)))
+                    if not indexes:
+                        # Legacy: book has chunks but no index records
+                        # Create a default entry
+                        row = self.book_index_table.rowCount()
+                        self.book_index_table.insertRow(row)
+                        
+                        self._populate_book_row(row, book_id, metadata, {
+                            'provider': 'legacy',
+                            'model_name': 'unknown',
+                            'dimensions': 768,
+                            'chunk_size': 1000,
+                            'total_chunks': len(indexes),
+                            'created_at': 'Unknown'
+                        })
+                    else:
+                        # Add a row for each index
+                        for index in indexes:
+                            row = self.book_index_table.rowCount()
+                            self.book_index_table.insertRow(row)
+                            self._populate_book_row(row, book_id, metadata, index)
                     
                 except Exception as e:
-                    logger.error(f"Error loading book {book_id}: {e}")
+                    print(f"[IndexManagerDialog] Error loading book {book_id}: {e}")
                     continue
                     
         except Exception as e:
-            logger.error(f"Error loading indexed books: {e}")
+            print(f"[IndexManagerDialog] Error loading indexed books: {e}")
+            
+    def _populate_book_row(self, row: int, book_id: int, metadata: Dict, index_info: Dict):
+        """Populate a single row with book and index information"""
+        # Book ID
+        self.book_index_table.setItem(row, 0, QTableWidgetItem(str(book_id)))
+        
+        # Title
+        title = metadata.get('title', 'Unknown')
+        self.book_index_table.setItem(row, 1, QTableWidgetItem(title))
+        
+        # Authors
+        authors = metadata.get('authors', [])
+        authors_str = ', '.join(authors) if authors else 'Unknown'
+        self.book_index_table.setItem(row, 2, QTableWidgetItem(authors_str))
+        
+        # Provider
+        provider = index_info.get('provider', 'unknown')
+        self.book_index_table.setItem(row, 3, QTableWidgetItem(provider))
+        
+        # Model
+        model = index_info.get('model_name', 'unknown')
+        self.book_index_table.setItem(row, 4, QTableWidgetItem(model))
+        
+        # Dimensions
+        dims = str(index_info.get('dimensions', 'unknown'))
+        self.book_index_table.setItem(row, 5, QTableWidgetItem(dims))
+        
+        # Chunks
+        chunks = str(index_info.get('total_chunks', 0))
+        self.book_index_table.setItem(row, 6, QTableWidgetItem(chunks))
+        
+        # Chunk Size
+        chunk_size = str(index_info.get('chunk_size', 'unknown'))
+        self.book_index_table.setItem(row, 7, QTableWidgetItem(chunk_size))
+        
+        # Created
+        created = index_info.get('created_at', 'Unknown')
+        if isinstance(created, str) and len(created) > 10:
+            created = created[:10]  # Just show date
+        self.book_index_table.setItem(row, 8, QTableWidgetItem(str(created)))
 
     def _load_indexed_books(self, books: List[Dict]):
         """Load indexed books into table (legacy method)"""

@@ -188,6 +188,7 @@ class ConfigWidget(QWidget):
             "Local = Ollama (coming soon)"
         )
         self.provider_combo.currentTextChanged.connect(self._on_provider_changed)
+        self.provider_combo.currentTextChanged.connect(self._update_model_options)
         provider_layout.addRow("Provider:", self.provider_combo)
 
         # Model selection
@@ -320,10 +321,42 @@ class ConfigWidget(QWidget):
         
         layout.addWidget(auto_group)
         
+        # Embedding Configuration
+        embedding_group = QGroupBox("Embedding Configuration")
+        embedding_layout = QFormLayout()
+        embedding_group.setLayout(embedding_layout)
+        
+        # Model selection (dynamically populated based on provider)
+        self.model_combo = QComboBox()
+        self.model_combo.setToolTip("Select the embedding model to use")
+        embedding_layout.addRow("Embedding Model:", self.model_combo)
+        
+        # Embedding dimensions
+        self.dimensions_spin = QSpinBox()
+        self.dimensions_spin.setRange(256, 4096)
+        self.dimensions_spin.setSingleStep(256)
+        self.dimensions_spin.setValue(768)  # Default
+        self.dimensions_spin.setToolTip("Number of dimensions in the embedding vector")
+        embedding_layout.addRow("Embedding Dimensions:", self.dimensions_spin)
+        
+        layout.addWidget(embedding_group)
+        
         # Text Processing Settings
         process_group = QGroupBox("Text Processing")
         process_layout = QFormLayout()
         process_group.setLayout(process_layout)
+        
+        # Chunking strategy
+        self.chunking_strategy_combo = QComboBox()
+        self.chunking_strategy_combo.addItems([
+            "Fixed Size", 
+            "Sentence-based (Coming Soon)",
+            "Paragraph-based (Coming Soon)",
+            "Semantic (Coming Soon)"
+        ])
+        self.chunking_strategy_combo.setCurrentIndex(0)
+        self.chunking_strategy_combo.setToolTip("How to split text into chunks")
+        process_layout.addRow("Chunking Strategy:", self.chunking_strategy_combo)
         
         # Chunk size
         self.chunk_size_spin = QSpinBox()
@@ -484,6 +517,21 @@ class ConfigWidget(QWidget):
             self.config.get("indexing_options.skip_matter", True)
         )
         
+        # New embedding configuration
+        self.dimensions_spin.setValue(
+            self.config.get("embedding_dimensions", 768)
+        )
+        self.chunking_strategy_combo.setCurrentIndex(
+            self.config.get("chunking_strategy", 0)
+        )
+        
+        # Populate and select model
+        current_model = self.config.get("embedding_model", "")
+        self._update_model_options(self.provider_combo.currentText())
+        index = self.model_combo.findText(current_model)
+        if index >= 0:
+            self.model_combo.setCurrentIndex(index)
+        
         # Azure-specific settings
         self.azure_deployment_edit.setText(self.config.get("azure_deployment", ""))
         self.azure_api_base_edit.setText(self.config.get("azure_api_base", ""))
@@ -532,6 +580,11 @@ class ConfigWidget(QWidget):
         self.config.set("indexing_options.philosophy_mode", self.philosophy_mode.isChecked())
         self.config.set("indexing_options.skip_matter", self.skip_matter.isChecked())
         
+        # New embedding configuration
+        self.config.set("embedding_model", self.model_combo.currentText())
+        self.config.set("embedding_dimensions", self.dimensions_spin.value())
+        self.config.set("chunking_strategy", self.chunking_strategy_combo.currentIndex())
+        
         # Azure-specific settings
         self.config.set("azure_deployment", self.azure_deployment_edit.text())
         self.config.set("azure_api_base", self.azure_api_base_edit.text())
@@ -540,6 +593,42 @@ class ConfigWidget(QWidget):
         # Save to disk
         self.config.save()
 
+    def _update_model_options(self, provider):
+        """Update model combo box options based on selected provider"""
+        self.model_combo.clear()
+        
+        if provider == "OpenAI":
+            self.model_combo.addItems([
+                "text-embedding-3-small",
+                "text-embedding-3-large", 
+                "text-embedding-ada-002"
+            ])
+            self.dimensions_spin.setValue(1536)  # Default for OpenAI
+        elif provider == "Vertex AI":
+            self.model_combo.addItems([
+                "text-embedding-preview-0815",
+                "text-embedding-004",
+                "textembedding-gecko@003"
+            ])
+            self.dimensions_spin.setValue(768)  # Default for Vertex
+        elif provider == "Cohere":
+            self.model_combo.addItems([
+                "embed-english-v3.0",
+                "embed-multilingual-v3.0",
+                "embed-english-light-v3.0"
+            ])
+            self.dimensions_spin.setValue(1024)  # Default for Cohere
+        elif provider == "Azure OpenAI":
+            self.model_combo.addItems([
+                "text-embedding-3-small",
+                "text-embedding-3-large",
+                "text-embedding-ada-002"
+            ])
+            self.dimensions_spin.setValue(1536)
+        else:  # Mock/Local
+            self.model_combo.addItems(["mock-embedding"])
+            self.dimensions_spin.setValue(768)
+    
     def _on_provider_changed(self, provider):
         """Handle provider selection change"""
         # Show/hide provider-specific settings

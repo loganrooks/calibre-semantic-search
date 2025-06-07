@@ -11,7 +11,7 @@ from typing import List, Optional, Callable
 from PyQt5.Qt import (
     QComboBox, QCompleter, QStringListModel, QTimer, QMovie, QLabel,
     QHBoxLayout, QWidget, QProgressBar, QToolButton, QMenu, QAction,
-    Qt, QSize, QPixmap, QIcon, QPainter, QColor, QBrush, QPen
+    Qt, QSize, QPixmap, QIcon, QPainter, QColor, QBrush, QPen, QApplication
 )
 
 try:
@@ -201,9 +201,9 @@ class DynamicLocationComboBox(QComboBox):
                     self.filtered_regions = self.all_regions.copy()
                     self._populate_combo_with_regions_smart(self.all_regions, "")
                 
-                # Show dropdown
+                # Show dropdown using focus-preserving method
                 if not self.view().isVisible():
-                    self.showPopup()
+                    self._show_popup_focus_preserving()
                 
                 # Call original handler to select text
                 original_double_click(event)
@@ -215,18 +215,75 @@ class DynamicLocationComboBox(QComboBox):
                 
                 # If field is empty and user focuses, show dropdown with all regions
                 if not self.lineEdit().text() and not self.view().isVisible():
-                    # Small delay to let focus settle
-                    QTimer.singleShot(100, self.showPopup)
+                    # Small delay to let focus settle, then show popup preserving focus
+                    QTimer.singleShot(100, self._show_popup_focus_preserving)
             
             # Install enhanced event handlers
             self.lineEdit().mouseDoubleClickEvent = enhanced_double_click
             self.lineEdit().focusInEvent = enhanced_focus_in
+    
+    def _show_popup_focus_preserving(self):
+        """
+        Show popup without stealing focus from line edit.
+        
+        This is the critical method that solves the typing interruption issue.
+        """
+        if not self.lineEdit():
+            return
+        
+        # Store current focus widget
+        focused_widget = QApplication.focusWidget()
+        
+        # Show the popup
+        self.showPopup()
+        
+        # CRITICAL: Immediately return focus to line edit using multiple approaches
+        # This ensures user can continue typing without interruption
+        
+        # Approach 1: Immediate focus return
+        self.lineEdit().setFocus(Qt.OtherFocusReason)
+        
+        # Approach 2: Delayed focus return (in case immediate doesn't work)
+        QTimer.singleShot(1, lambda: self.lineEdit().setFocus(Qt.OtherFocusReason))
+        
+        # Approach 3: Restore original focus if it was line edit
+        if focused_widget == self.lineEdit():
+            QTimer.singleShot(5, lambda: focused_widget.setFocus(Qt.OtherFocusReason))
+        
+        # Approach 4: Ensure line edit is active window focus
+        QTimer.singleShot(10, self._ensure_line_edit_focus)
+    
+    def _ensure_line_edit_focus(self):
+        """Ensure line edit maintains focus for continuous typing"""
+        if self.lineEdit() and self.view().isVisible():
+            # Force focus back to line edit if it lost focus
+            if QApplication.focusWidget() != self.lineEdit():
+                self.lineEdit().setFocus(Qt.OtherFocusReason)
+                # Also make sure cursor is at end for natural typing
+                self.lineEdit().setCursorPosition(len(self.lineEdit().text()))
     
     def _setup_filtering(self):
         """Setup real-time filtering as user types"""
         if self.lineEdit():
             self.lineEdit().textEdited.connect(self._on_text_edited)
             self.editTextChanged.connect(self._on_edit_text_changed)
+            
+            # Enhanced key handling for better UX
+            original_key_press = self.lineEdit().keyPressEvent
+            
+            def enhanced_key_press(event):
+                """Enhanced key handling with ESC to close dropdown"""
+                # ESC key closes dropdown and returns focus to line edit
+                if event.key() == Qt.Key_Escape and self.view().isVisible():
+                    self.hidePopup()
+                    self.lineEdit().setFocus(Qt.OtherFocusReason)
+                    event.accept()
+                    return
+                
+                # Call original handler for normal key processing
+                original_key_press(event)
+            
+            self.lineEdit().keyPressEvent = enhanced_key_press
         
         # Setup timer for delayed filtering (better performance)
         self.filter_timer = QTimer()
@@ -245,7 +302,7 @@ class DynamicLocationComboBox(QComboBox):
             return
     
     def _apply_filter(self):
-        """Apply search filter to regions with improved UX"""
+        """Apply search filter to regions with focus-preserving UX"""
         filter_text = self.lineEdit().text().lower().strip() if self.lineEdit() else ""
         
         # Don't re-filter if text hasn't changed
@@ -269,9 +326,9 @@ class DynamicLocationComboBox(QComboBox):
         # Update combo box items (but preserve user's input text)
         self._populate_combo_with_regions_smart(self.filtered_regions, filter_text)
         
-        # Always show dropdown when user is typing (better UX)
+        # CRITICAL FIX: Show dropdown without stealing focus
         if filter_text and not self.view().isVisible():
-            self.showPopup()
+            self._show_popup_focus_preserving()
     
     def _fetch_regions_async(self, force_refresh: bool = False):
         """Fetch regions asynchronously"""

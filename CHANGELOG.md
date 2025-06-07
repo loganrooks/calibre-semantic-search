@@ -28,6 +28,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added (2025-06-05) - **ULTRA-ADVANCED** Dynamic Location System
 
 #### **🎯 Enhanced User Experience (UX) Improvements**
+
+#### **🔥 CRITICAL FIX: Focus-Stealing Prevention**
+- **❌ Problem Solved**: Dropdown no longer steals keyboard focus, preventing typing interruption
+- **⌨️ Continuous Typing**: Can now type freely while dropdown filters - no more clicking back into text field
+- **🎯 Multi-Layer Focus Restoration**: Immediate + delayed focus return with cursor position preservation
+- **⎋ ESC Key Support**: Press ESC to dismiss dropdown and return to typing
+- **🔄 Focus Monitoring**: Automatic focus recovery if lost during dropdown interactions
+
+#### **✨ Additional UX Improvements**
 - **⭐ Icon Meanings Clarified**: Star (⭐) = Popular regions, Checkmark (✅) = Available regions, Warning (⚠️) = Unavailable
 - **⌨️ Improved Typing Experience**: Never replaces user input with "No regions found" - shows as disabled dropdown item instead
 - **📋 Smart Dropdown Behavior**: Always shows dropdown while typing, better filtering UX with preserved input text

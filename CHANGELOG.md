@@ -26,6 +26,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Plugin configuration now works correctly in Calibre 8.3+
 
 ### Added (2025-06-05) - **ULTRA-ADVANCED** Dynamic Location System
+
+#### **🎯 Enhanced User Experience (UX) Improvements**
+- **⭐ Icon Meanings Clarified**: Star (⭐) = Popular regions, Checkmark (✅) = Available regions, Warning (⚠️) = Unavailable
+- **⌨️ Improved Typing Experience**: Never replaces user input with "No regions found" - shows as disabled dropdown item instead
+- **📋 Smart Dropdown Behavior**: Always shows dropdown while typing, better filtering UX with preserved input text
+- **🖱️ Enhanced Interactions**: Double-click to clear filter and show all regions, focus-in auto-shows dropdown
+- **🔍 Better Search Feedback**: Shows "🔍 No regions found for 'your-search'" as disabled item in dropdown
+- **🚫 Non-Intrusive UX**: Signal blocking prevents interference with user typing, preserves input text always
+
+### Added (2025-06-05) - **ULTRA-ADVANCED** Dynamic Location System
 - **🚀 Dynamic API Fetching** - Real-time fetching of cloud regions from official provider APIs with intelligent caching
 - **⚡ Real-time Filtering** - Type to instantly filter 50+ regions with millisecond response times
 - **🎯 Smart Location Selection** - Advanced dropdown with loading indicators, status feedback, and context menus

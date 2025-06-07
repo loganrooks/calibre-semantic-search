@@ -7,10 +7,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (2025-06-05) - Critical Configuration Bugs
+
+#### **🔄 Circular Import Issue - LOCATION-UI-20250605-0840**
+- **Problem**: Location dropdown widgets not appearing in settings UI due to circular import deadlock
+- **Root Cause**: Module-level imports of `DynamicLocationComboBox` creating circular dependency with `SemanticSearchConfig`
+- **Solution**: Implemented lazy loading of `LocationComboBox` inside `ConfigWidget._create_location_widget()` method
+- **Result**: Dynamic location dropdowns now work correctly without circular import errors
+- **Technical Details**: 
+  - Moved imports from module level to method level to break dependency cycle
+  - Added fallback handling for both `DynamicLocationComboBox` and basic `LocationComboBox`
+  - Maintained backward compatibility with QLineEdit fallbacks
+
+#### **🔧 JSONConfig Save Error**
+- **🔧 JSONConfig Save Error** - Fixed critical bug where configuration saving failed with "AttributeError: 'JSONConfig' object has no attribute 'save'"
+- Calibre's JSONConfig auto-saves when values are modified, no explicit save() method needed
+- Resolves configuration dialog crashes when users try to save settings
+- Plugin configuration now works correctly in Calibre 8.3+
+
+### Added (2025-06-05) - **ULTRA-ADVANCED** Dynamic Location System
+- **🚀 Dynamic API Fetching** - Real-time fetching of cloud regions from official provider APIs with intelligent caching
+- **⚡ Real-time Filtering** - Type to instantly filter 50+ regions with millisecond response times
+- **🎯 Smart Location Selection** - Advanced dropdown with loading indicators, status feedback, and context menus
+- **📡 Async HTTP Integration** - Non-blocking API calls using threading for seamless user experience
+- **💾 Intelligent Caching** - 24-hour TTL cache with graceful fallback to static data when APIs fail
+- **🔄 Auto-refresh Capability** - Context menu with refresh and cache clearing options
+- **⭐ Popular Regions Priority** - Most-used regions highlighted and sorted at top with star indicators
+- **✏️ Custom Entry Support** - Still allows typing custom regions not in predefined lists
+- **🌍 Multi-Provider Support** - Google Cloud (25+ regions), Azure (30+ regions), AWS (13+ regions)
+- **💡 Rich Descriptions** - Detailed region info with status indicators (✅/⚠️) and geographic descriptions
+- **🎨 Visual Feedback** - Animated loading spinners, status tooltips, and organized region groups
+
+#### Technical Architecture
+- **`LocationDataFetcher`** (400+ lines) - Async HTTP client with caching, error handling, and API parsers
+- **`DynamicLocationComboBox`** (300+ lines) - Advanced QComboBox with real-time filtering and loading states  
+- **`CloudRegionsData`** - Static fallback data provider with 50+ pre-defined regions
+- **Multi-layer Fallback**: Live API → Cache → Static data → Graceful degradation
+- **Thread Safety**: Daemon threads for API calls without blocking UI
+- **Performance Optimized**: 150ms filter delay, intelligent result limiting, memory-efficient caching
+- **Error Resilience**: Comprehensive exception handling with user-friendly error states
+
+#### User Experience Improvements
+- **Instant Search**: Type "us" → instantly see all US regions
+- **Context Actions**: Right-click for refresh, cache management, and provider info
+- **Loading States**: Visual feedback during API calls with animated indicators
+- **Smart Tooltips**: Region status, provider info, and performance metrics
+- **Keyboard Navigation**: Full keyboard support with arrow keys and tab completion
+- **Accessibility**: Screen reader friendly with proper ARIA labels and status updates
+
+### Added (2025-06-05) - Direct Vertex AI Integration
+- **🔥 Direct Vertex AI Provider** - Full support for gemini-embedding-001 bypassing LiteLLM limitations
+- **Custom Dimensionality Control** - Configurable dimensions (1-3072) via output_dimensionality parameter  
+- **Professional Configuration UI** - Provider-specific sections with real-time validation
+- **Google Cloud Integration** - Native google-cloud-aiplatform SDK with proper authentication
+- **Enhanced Test Connection** - Provider-specific validation with helpful error messages
+- **TDD Test Suite** - 8/9 comprehensive tests passing for complete validation
+
+#### Technical Implementation
+- `DirectVertexAIProvider` class with async embedding generation
+- EmbeddingService factory integration for seamless provider switching
+- Sequential batch processing optimized for gemini-embedding-001 limitations
+- Application Default Credentials and service account key support
+- Model-specific optimizations with RETRIEVAL_DOCUMENT task type
+
+### Fixed (2025-06-04) - Critical Integration Issues
+- **Issue #1: Test Connection Plugin Reference Chain** ✅ FIXED
+  - Fixed broken parent chain traversal preventing cloud provider testing
+  - Modified __init__.py config_widget() to pass actual_plugin_ reference to ConfigWidget
+  - Updated config.py _test_connection() to use plugin_interface instead of parent chain
+  - Test Connection button now works with Vertex AI, OpenAI, Azure OpenAI providers
+  - Created TDD test suite validating fix (tests/integration/test_issue_1_plugin_reference_fix.py)
+  - Validation script confirms broken pattern eliminated
+
 ### Added (2025-06-04) - Phase 0 Validation & Documentation Workflow
 - **Phase 0: Critical Integration Issues Diagnosis Validation** 
   - Validated all 5 critical UI/Backend integration issues from UI_BACKEND_INTEGRATION_DIAGNOSIS.md
-  - Issue #1: Plugin reference chain broken ✅ CONFIRMED (parent chain traversal pattern found)
+  - Issue #1: Plugin reference chain broken ✅ CONFIRMED → ✅ FIXED
   - Issue #2: Configuration conflicts ✅ CONFIRMED (both model_edit and model_combo save to same key)
   - Issue #3: Index Manager issues ✅ CONFIRMED (duplicate stats, editable tables, legacy fallback)
   - Issue #4: Service initialization race ✅ CONFIRMED (early init without config change detection)

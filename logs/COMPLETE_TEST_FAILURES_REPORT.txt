@@ -1,0 +1,921 @@
+CALIBRE SEMANTIC SEARCH - COMPLETE TEST FAILURES REPORT
+========================================================
+Generated: 2025-06-09 08:03:21
+Report Type: Comprehensive debugging documentation for all failing tests
+
+EXECUTIVE SUMMARY
+=================
+
+Status Overview:
+✅ PASSING: 4/10 test categories (40%)
+❌ FAILING: 5/10 test categories (50%) 
+⏰ TIMEOUT: 1/10 test categories (10%)
+
+Core Finding: Business logic is solid. Failures are in UI integration layer and test infrastructure.
+
+DETAILED FAILURE ANALYSIS
+==========================
+
+1. EPUB INTEGRATION TESTS - ❌ CRITICAL FAILURE
+   Location: tests/integration/test_epub_extraction_fix.py
+   Root Cause: Indexing service returns 0 successful books (business logic issue)
+   Priority: HIGH - Core functionality broken
+
+2. INDEX MANAGEMENT TESTS - ❌ UI FAILURE  
+   Location: tests/ui/test_index_management_ui.py
+   Root Cause: Missing UI components and status formatting methods
+   Priority: MEDIUM - UI integration issue
+
+3. CALIBRE INTEGRATION TESTS - ❌ IMPORT FAILURE
+   Location: tests/ui/test_actual_calibre_integration.py  
+   Root Cause: ThreadedJob import issues in interface.py
+   Priority: HIGH - Integration layer broken
+
+4. FOCUS BUG TESTS - ❌ EXPECTED FAILURE
+   Location: tests/ui/test_focus_stealing_bug_BUG_FOCUS_STEAL_20250607.py
+   Root Cause: Focus-stealing bug not yet verified as fixed
+   Priority: HIGH - Active bug being worked on
+
+5. CONFIG UI TESTS - ❌ TDD FAILURE
+   Location: tests/ui/test_config_ui_redesign_tdd.py
+   Root Cause: Missing UI components for provider/model selection
+   Priority: MEDIUM - Feature not yet implemented
+
+6. DELAYED INIT TESTS - ⏰ TIMEOUT
+   Location: tests/integration/test_delayed_initialization.py
+   Root Cause: Pytest collection hangs (likely Qt/GUI initialization)
+   Priority: LOW - Test infrastructure issue
+
+FULL DEBUGGING OUTPUT
+======================
+================================================================================
+DETAILED LOG: epub_integration_failures.log
+================================================================================
+=== EPUB Integration TEST FAILURES ===
+Timestamp: 2025-06-09 08:02:32
+Test Path: tests/integration/test_epub_extraction_fix.py
+Return Code: 1
+================================================================================
+
+STDOUT:
+----------------------------------------
+============================= test session starts ==============================
+collected 2 items
+
+tests/integration/test_epub_extraction_fix.py .F                         [100%]
+
+=================================== FAILURES ===================================
+________________ TestEPUBExtractionFix.test_indexing_with_epub _________________
+
+self = <test_epub_extraction_fix.TestEPUBExtractionFix object at 0x76585066d7b0>
+
+    @pytest.mark.asyncio
+    async def test_indexing_with_epub(self):
+        """Test full indexing workflow with EPUB file"""
+        # Create test EPUB
+        content = '''<html><body>
+            <h1>Introduction to Phenomenology</h1>
+            <p>Phenomenology is the philosophical study of the structures of experience and consciousness.</p>
+            <p>As a philosophical movement it was founded in the early years of the 20th century by Edmund Husserl.</p>
+        </body></html>'''
+    
+        epub_path = self.create_test_epub(content, '/tmp/test_phenom.epub')
+    
+        try:
+            # Set up test database
+            with tempfile.TemporaryDirectory() as tmpdir:
+                db_path = os.path.join(tmpdir, 'test_embeddings.db')
+    
+                # Create repositories
+                embedding_db = SemanticSearchDB(db_path)
+                embedding_repo = Mock()
+                embedding_repo.db = embedding_db
+                embedding_repo.store_embedding = embedding_db.store_embedding
+                embedding_repo.update_indexing_status = Mock()
+                embedding_repo.delete_book_embeddings = Mock()
+                embedding_repo.get_indexing_status = Mock(return_value=[])
+                embedding_repo.get_statistics = Mock(return_value={'indexed_books': 0})
+    
+                # Mock Calibre repository
+                mock_calibre_db = Mock()
+                mock_calibre_db.formats.return_value = ['EPUB']
+                mock_calibre_db.format_abspath.return_value = epub_path
+                mock_calibre_db.get_metadata.return_value = Mock(
+                    title="Introduction to Phenomenology",
+                    authors=["Edmund Husserl"],
+                    tags=["philosophy", "phenomenology"],
+                    series=None,
+                    series_index=None,
+                    pubdate=None,
+                    language="en",
+                    format_metadata={'EPUB': {}},
+                    identifiers={},
+                    comments="",
+                    publisher=""
+                )
+    
+                calibre_repo = CalibreRepository(mock_calibre_db)
+    
+                # Create services
+                text_processor = TextProcessor()
+                embedding_service = MockProvider()
+    
+                indexing_service = IndexingService(
+                    embedding_repo=embedding_repo,
+                    calibre_repo=calibre_repo,
+                    embedding_service=embedding_service,
+                    text_processor=text_processor
+                )
+    
+                # Index the book
+                result = await indexing_service.index_books([1])
+    
+                # Verify indexing worked
+>               assert result['successful_books'] == 1
+E               assert 0 == 1
+
+tests/integration/test_epub_extraction_fix.py:194: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[SemanticSearchDB] Initializing with path: /tmp/tmpuxxtf707/test_embeddings.db
+[SemanticSearchDB] Resolved path: /tmp/tmpuxxtf707/test_embeddings.db
+[SemanticSearchDB] File exists: False
+[SemanticSearchDB] Parent directory: /tmp/tmpuxxtf707
+[SemanticSearchDB] Calling _init_database()
+[SemanticSearchDB] Starting _init_database()
+[SemanticSearchDB] Got database connection
+[SemanticSearchDB] Current schema version: 0
+[SemanticSearchDB] Creating new database schema
+[SemanticSearchDB] _create_schema() called
+[SemanticSearchDB] Creating schema_version table
+[SemanticSearchDB] schema_version table created
+[SemanticSearchDB] Creating books table
+[SemanticSearchDB] books table created
+[SemanticSearchDB] Creating indexes table
+[SemanticSearchDB] indexes table created
+[SemanticSearchDB] Database initialization complete
+------------------------------ Captured log call -------------------------------
+WARNING  data.database:database.py:96 sqlite-vec extension not found. Vector search will be limited.
+WARNING  data.database:database.py:246 vec0 not available, using fallback embedding storage
+ERROR    core.indexing_service:indexing_service.py:144 Error indexing book 1: object Mock can't be used in 'await' expression
+=========================== short test summary info ============================
+FAILED tests/integration/test_epub_extraction_fix.py::TestEPUBExtractionFix::test_indexing_with_epub
+========================= 1 failed, 1 passed in 0.71s ==========================
+
+
+STDERR:
+----------------------------------------
+/home/loganrooks/.local/lib/python3.10/site-packages/pytest_asyncio/plugin.py:217: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+
+
+================================================================================
+DETAILED LOG: index_management_failures.log
+================================================================================
+=== Index Management TEST FAILURES ===
+Timestamp: 2025-06-09 08:02:37
+Test Path: tests/ui/test_index_management_ui.py
+Return Code: 1
+================================================================================
+
+STDOUT:
+----------------------------------------
+============================= test session starts ==============================
+collected 18 items
+
+tests/ui/test_index_management_ui.py FFF
+
+=================================== FAILURES ===================================
+_________ TestIndexDetectorUI.test_get_index_status_for_multiple_books _________
+
+self = <ui.test_index_management_ui.TestIndexDetectorUI object at 0x7d456e9c4f70>
+
+    def test_get_index_status_for_multiple_books(self):
+        """Test getting index status for a list of books"""
+>       from calibre_plugins.semantic_search.ui.index_detector import IndexDetector
+E       ModuleNotFoundError: No module named 'calibre_plugins.semantic_search.ui.index_detector'
+
+tests/ui/test_index_management_ui.py:21: ModuleNotFoundError
+_________ TestIndexDetectorUI.test_index_status_formatting_for_display _________
+
+self = <ui.test_index_management_ui.TestIndexDetectorUI object at 0x7d456e9c50c0>
+
+    def test_index_status_formatting_for_display(self):
+        """Test formatting index status for UI display"""
+>       from calibre_plugins.semantic_search.ui.index_detector import IndexDetector
+E       ModuleNotFoundError: No module named 'calibre_plugins.semantic_search.ui.index_detector'
+
+tests/ui/test_index_management_ui.py:56: ModuleNotFoundError
+_________________ TestIndexDetectorUI.test_index_status_icons __________________
+
+self = <ui.test_index_management_ui.TestIndexDetectorUI object at 0x7d456e9c5270>
+
+    def test_index_status_icons(self):
+        """Test appropriate icons are returned for different status"""
+>       from calibre_plugins.semantic_search.ui.index_detector import IndexDetector
+E       ModuleNotFoundError: No module named 'calibre_plugins.semantic_search.ui.index_detector'
+
+tests/ui/test_index_management_ui.py:85: ModuleNotFoundError
+=========================== short test summary info ============================
+FAILED tests/ui/test_index_management_ui.py::TestIndexDetectorUI::test_get_index_status_for_multiple_books
+FAILED tests/ui/test_index_management_ui.py::TestIndexDetectorUI::test_index_status_formatting_for_display
+FAILED tests/ui/test_index_management_ui.py::TestIndexDetectorUI::test_index_status_icons
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 3 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+============================== 3 failed in 0.58s ===============================
+
+
+STDERR:
+----------------------------------------
+/home/loganrooks/.local/lib/python3.10/site-packages/pytest_asyncio/plugin.py:217: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+
+
+================================================================================
+DETAILED LOG: calibre_integration_failures.log
+================================================================================
+=== Calibre Integration TEST FAILURES ===
+Timestamp: 2025-06-09 08:02:39
+Test Path: tests/ui/test_actual_calibre_integration.py
+Return Code: 1
+================================================================================
+
+STDOUT:
+----------------------------------------
+============================= test session starts ==============================
+collected 4 items
+
+tests/ui/test_actual_calibre_integration.py .F..                         [100%]
+
+=================================== FAILURES ===================================
+_ TestActualCalibreIntegration.test_interface_does_not_import_threaded_job_at_all _
+
+self = <ui.test_actual_calibre_integration.TestActualCalibreIntegration object at 0x70c69bdd4880>
+
+    def test_interface_does_not_import_threaded_job_at_all(self):
+        """
+        Test that interface.py doesn't import ThreadedJob anymore
+        since it was causing errors in actual Calibre.
+        """
+        # Read the interface.py file content
+        interface_file_path = os.path.join(
+            os.path.dirname(__file__),
+            '..', '..', 'calibre_plugins', 'semantic_search', 'interface.py'
+        )
+    
+        with open(interface_file_path, 'r') as f:
+            content = f.read()
+    
+        # Should not contain ThreadedJob imports or usage
+>       assert "from calibre.gui2.threaded_jobs import ThreadedJob" not in content, \
+            "interface.py still imports ThreadedJob - this causes Calibre errors"
+E       AssertionError: interface.py still imports ThreadedJob - this causes Calibre errors
+E       assert 'from calibr... ThreadedJob' not in '"""\nMain U...rn QIcon()\n'
+E         
+E         'from calibre.gui2.... import ThreadedJob' is contained here:
+E           
+E           try:
+E               from calibre.gui2.threaded_jobs import ThreadedJob
+E           except ImportError:
+E               # Fallback for test environment...
+E         
+E         ...Full output truncated (813 lines hidden), use '-vv' to show
+
+tests/ui/test_actual_calibre_integration.py:74: AssertionError
+=========================== short test summary info ============================
+FAILED tests/ui/test_actual_calibre_integration.py::TestActualCalibreIntegration::test_interface_does_not_import_threaded_job_at_all
+========================= 1 failed, 3 passed in 0.09s ==========================
+
+
+STDERR:
+----------------------------------------
+/home/loganrooks/.local/lib/python3.10/site-packages/pytest_asyncio/plugin.py:217: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+
+
+================================================================================
+DETAILED LOG: focus_bug_test_failures.log
+================================================================================
+=== Focus Bug Test TEST FAILURES ===
+Timestamp: 2025-06-09 08:02:40
+Test Path: tests/ui/test_focus_stealing_bug_BUG_FOCUS_STEAL_20250607.py
+Return Code: 1
+================================================================================
+
+STDOUT:
+----------------------------------------
+============================= test session starts ==============================
+collected 4 items
+
+tests/ui/test_focus_stealing_bug_BUG_FOCUS_STEAL_20250607.py FFF
+
+=================================== FAILURES ===================================
+________ TestFocusStealingBug.test_typing_continuous_focus_preservation ________
+
+self = <ui.test_focus_stealing_bug_BUG_FOCUS_STEAL_20250607.TestFocusStealingBug object at 0x73e796d24910>
+app = <MagicMock name='mock.QApplication.instance()' id='127438505012880'>
+parent_widget = <MagicMock id='127438505135408'>
+mock_fetcher = <Mock name='LocationDataFetcher()' id='127438505200128'>
+
+    def test_typing_continuous_focus_preservation(self, app, parent_widget, mock_fetcher):
+        """
+        BUG: Focus gets stolen when typing triggers dropdown updates
+    
+        This test should FAIL until the bug is fixed.
+    
+        Expected behavior:
+        1. User starts typing in line edit
+        2. Dropdown updates with filtered results
+        3. Line edit maintains focus throughout
+        4. User can continue typing without interruption
+    
+        Actual broken behavior:
+        1. User types first character
+        2. showPopup() gets called which steals focus
+        3. Line edit loses focus
+        4. User must click back to continue typing
+        """
+        # Create combo box
+        combo = DynamicLocationComboBox("vertex_ai", parent_widget)
+    
+        # Ensure line edit has focus initially
+        line_edit = combo.lineEdit()
+        assert line_edit is not None, "ComboBox should have line edit"
+    
+        line_edit.setFocus()
+        app.processEvents()
+    
+        # Verify initial focus
+>       assert app.focusWidget() == line_edit, "Line edit should have initial focus"
+E       AssertionError: Line edit should have initial focus
+E       assert <MagicMock na...438505305104'> == <MagicMock na...438505208096'>
+E         
+E         Use -v to get more diff
+
+tests/ui/test_focus_stealing_bug_BUG_FOCUS_STEAL_20250607.py:81: AssertionError
+______ TestFocusStealingBug.test_no_qtimer_threading_errors_during_typing ______
+
+self = <ui.test_focus_stealing_bug_BUG_FOCUS_STEAL_20250607.TestFocusStealingBug object at 0x73e796d24b20>
+app = <MagicMock name='mock.QApplication.instance()' id='127438505012880'>
+parent_widget = <MagicMock id='127438505586320'>
+mock_fetcher = <Mock name='LocationDataFetcher()' id='127438505388608'>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x73e796d82b60>
+
+    def test_no_qtimer_threading_errors_during_typing(self, app, parent_widget, mock_fetcher, caplog):
+        """
+        BUG: QTimer threading errors occur during focus restoration
+    
+        Expected: No threading errors should occur
+        Actual: "QObject::killTimer: Timers cannot be stopped from another thread"
+        """
+>       combo = DynamicLocationComboBox("vertex_ai", parent_widget)
+
+tests/ui/test_focus_stealing_bug_BUG_FOCUS_STEAL_20250607.py:107: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <MagicMock spec='str' id='127438504900256'>
+args = ('vertex_ai', <MagicMock id='127438505586320'>), kwargs = {}
+
+    def __call__(self, /, *args, **kwargs):
+        # can't use self in-case a function / method we are mocking uses self
+        # in the signature
+        self._mock_check_sig(*args, **kwargs)
+        self._increment_mock_call(*args, **kwargs)
+>       return self._mock_call(*args, **kwargs)
+
+/usr/lib/python3.10/unittest/mock.py:1114: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <MagicMock spec='str' id='127438504900256'>
+args = ('vertex_ai', <MagicMock id='127438505586320'>), kwargs = {}
+
+    def _mock_call(self, /, *args, **kwargs):
+>       return self._execute_mock_call(*args, **kwargs)
+
+/usr/lib/python3.10/unittest/mock.py:1118: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <MagicMock spec='str' id='127438504900256'>
+args = ('vertex_ai', <MagicMock id='127438505586320'>), kwargs = {}
+effect = <tuple_iterator object at 0x73e796d198d0>
+
+    def _execute_mock_call(self, /, *args, **kwargs):
+        # separate from _increment_mock_call so that awaited functions are
+        # executed separately from their call, also AsyncMock overrides this method
+    
+        effect = self.side_effect
+        if effect is not None:
+            if _is_exception(effect):
+                raise effect
+            elif not _callable(effect):
+>               result = next(effect)
+E               StopIteration
+
+/usr/lib/python3.10/unittest/mock.py:1175: StopIteration
+
+The above exception was the direct cause of the following exception:
+
+cls = <class '_pytest.runner.CallInfo'>
+func = <function call_and_report.<locals>.<lambda> at 0x73e796eceef0>
+when = 'call'
+reraise = (<class '_pytest.outcomes.Exit'>, <class 'KeyboardInterrupt'>)
+
+    @classmethod
+    def from_call(
+        cls,
+        func: Callable[[], TResult],
+        when: Literal["collect", "setup", "call", "teardown"],
+        reraise: type[BaseException] | tuple[type[BaseException], ...] | None = None,
+    ) -> CallInfo[TResult]:
+        """Call func, wrapping the result in a CallInfo.
+    
+        :param func:
+            The function to call. Called without arguments.
+        :type func: Callable[[], _pytest.runner.TResult]
+        :param when:
+            The phase in which the function is called.
+        :param reraise:
+            Exception or exceptions that shall propagate if raised by the
+            function, instead of being wrapped in the CallInfo.
+        """
+        excinfo = None
+        start = timing.time()
+        precise_start = timing.perf_counter()
+        try:
+>           result: TResult | None = func()
+
+../../.local/lib/python3.10/site-packages/_pytest/runner.py:341: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+>       lambda: runtest_hook(item=item, **kwds), when=when, reraise=reraise
+    )
+
+../../.local/lib/python3.10/site-packages/_pytest/runner.py:242: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <HookCaller 'pytest_runtest_call'>
+kwargs = {'item': <Function test_no_qtimer_threading_errors_during_typing>}
+firstresult = False
+
+    def __call__(self, **kwargs: object) -> Any:
+        """Call the hook.
+    
+        Only accepts keyword arguments, which should match the hook
+        specification.
+    
+        Returns the result(s) of calling all registered plugins, see
+        :ref:`calling`.
+        """
+        assert (
+            not self.is_historic()
+        ), "Cannot directly call a historic hook - use call_historic instead."
+        self._verify_all_args_are_provided(kwargs)
+        firstresult = self.spec.opts.get("firstresult", False) if self.spec else False
+        # Copy because plugins may register other plugins during iteration (#438).
+>       return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+
+../../.local/lib/python3.10/site-packages/pluggy/_hooks.py:513: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <_pytest.config.PytestPluginManager object at 0x73e799121810>
+hook_name = 'pytest_runtest_call'
+methods = [<HookImpl plugin_name='runner', plugin=<module '_pytest.runner' from '/home/loganrooks/.local/lib/python3.10/site-pac...ule '_pytest.threadexception' from '/home/loganrooks/.local/lib/python3.10/site-packages/_pytest/threadexception.py'>>]
+kwargs = {'item': <Function test_no_qtimer_threading_errors_during_typing>}
+firstresult = False
+
+    def _hookexec(
+        self,
+        hook_name: str,
+        methods: Sequence[HookImpl],
+        kwargs: Mapping[str, object],
+        firstresult: bool,
+    ) -> object | list[object]:
+        # called from all hookcaller instances.
+        # enable_tracing will set its own wrapping function at self._inner_hookexec
+>       return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+
+../../.local/lib/python3.10/site-packages/pluggy/_manager.py:120: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    @pytest.hookimpl(wrapper=True, tryfirst=True)
+    def pytest_runtest_call() -> Generator[None]:
+>       yield from thread_exception_runtest_hook()
+
+../../.local/lib/python3.10/site-packages/_pytest/threadexception.py:92: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def thread_exception_runtest_hook() -> Generator[None]:
+        with catch_threading_exception() as cm:
+            try:
+>               yield
+
+../../.local/lib/python3.10/site-packages/_pytest/threadexception.py:68: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    @pytest.hookimpl(wrapper=True, tryfirst=True)
+    def pytest_runtest_call() -> Generator[None]:
+>       yield from unraisable_exception_runtest_hook()
+
+../../.local/lib/python3.10/site-packages/_pytest/unraisableexception.py:95: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def unraisable_exception_runtest_hook() -> Generator[None]:
+        with catch_unraisable_exception() as cm:
+            try:
+>               yield
+
+../../.local/lib/python3.10/site-packages/_pytest/unraisableexception.py:70: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <_pytest.logging.LoggingPlugin object at 0x73e796f25720>
+item = <Function test_no_qtimer_threading_errors_during_typing>
+
+    @hookimpl(wrapper=True)
+    def pytest_runtest_call(self, item: nodes.Item) -> Generator[None]:
+        self.log_cli_handler.set_when("call")
+    
+>       yield from self._runtest_for(item, "call")
+
+../../.local/lib/python3.10/site-packages/_pytest/logging.py:846: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <_pytest.logging.LoggingPlugin object at 0x73e796f25720>
+item = <Function test_no_qtimer_threading_errors_during_typing>, when = 'call'
+
+    def _runtest_for(self, item: nodes.Item, when: str) -> Generator[None]:
+        """Implement the internals of the pytest_runtest_xxx() hooks."""
+        with catching_logs(
+            self.caplog_handler,
+            level=self.log_level,
+        ) as caplog_handler, catching_logs(
+            self.report_handler,
+            level=self.log_level,
+        ) as report_handler:
+            caplog_handler.reset()
+            report_handler.reset()
+            item.stash[caplog_records_key][when] = caplog_handler.records
+            item.stash[caplog_handler_key] = caplog_handler
+    
+            try:
+>               yield
+
+../../.local/lib/python3.10/site-packages/_pytest/logging.py:829: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <CaptureManager _method='fd' _global_capturing=<MultiCapture out=<FDCapture 1 oldfd=5 _state='suspended' tmpfile=<_io....xtIOWrapper name='/dev/null' mode='r' encoding='utf-8'>> _state='suspended' _in_suspended=False> _capture_fixture=None>
+item = <Function test_no_qtimer_threading_errors_during_typing>
+
+    @hookimpl(wrapper=True)
+    def pytest_runtest_call(self, item: Item) -> Generator[None]:
+        with self.item_capture("call", item):
+>           return (yield)
+E           RuntimeError: generator raised StopIteration
+
+../../.local/lib/python3.10/site-packages/_pytest/capture.py:898: RuntimeError
+____ TestFocusStealingBug.test_dropdown_updates_without_focus_interruption _____
+
+self = <ui.test_focus_stealing_bug_BUG_FOCUS_STEAL_20250607.TestFocusStealingBug object at 0x73e796d24d30>
+app = <MagicMock name='mock.QApplication.instance()' id='127438505012880'>
+parent_widget = <MagicMock id='127438505180416'>
+mock_fetcher = <Mock name='LocationDataFetcher()' id='127438503638784'>
+
+    def test_dropdown_updates_without_focus_interruption(self, app, parent_widget, mock_fetcher):
+        """
+        BUG: Dropdown should update filtered results without stealing focus
+    
+        Expected behavior:
+        1. User types -> dropdown model updates -> user continues typing
+    
+        Broken behavior:
+        1. User types -> showPopup() called -> focus stolen -> typing interrupted
+        """
+>       combo = DynamicLocationComboBox("vertex_ai", parent_widget)
+
+tests/ui/test_focus_stealing_bug_BUG_FOCUS_STEAL_20250607.py:139: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <MagicMock spec='str' id='127438504900256'>
+args = ('vertex_ai', <MagicMock id='127438505180416'>), kwargs = {}
+
+    def __call__(self, /, *args, **kwargs):
+        # can't use self in-case a function / method we are mocking uses self
+        # in the signature
+        self._mock_check_sig(*args, **kwargs)
+        self._increment_mock_call(*args, **kwargs)
+>       return self._mock_call(*args, **kwargs)
+
+/usr/lib/python3.10/unittest/mock.py:1114: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <MagicMock spec='str' id='127438504900256'>
+args = ('vertex_ai', <MagicMock id='127438505180416'>), kwargs = {}
+
+    def _mock_call(self, /, *args, **kwargs):
+>       return self._execute_mock_call(*args, **kwargs)
+
+/usr/lib/python3.10/unittest/mock.py:1118: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <MagicMock spec='str' id='127438504900256'>
+args = ('vertex_ai', <MagicMock id='127438505180416'>), kwargs = {}
+effect = <tuple_iterator object at 0x73e796d198d0>
+
+    def _execute_mock_call(self, /, *args, **kwargs):
+        # separate from _increment_mock_call so that awaited functions are
+        # executed separately from their call, also AsyncMock overrides this method
+    
+        effect = self.side_effect
+        if effect is not None:
+            if _is_exception(effect):
+                raise effect
+            elif not _callable(effect):
+>               result = next(effect)
+E               StopIteration
+
+/usr/lib/python3.10/unittest/mock.py:1175: StopIteration
+
+The above exception was the direct cause of the following exception:
+
+cls = <class '_pytest.runner.CallInfo'>
+func = <function call_and_report.<locals>.<lambda> at 0x73e796a80550>
+when = 'call'
+reraise = (<class '_pytest.outcomes.Exit'>, <class 'KeyboardInterrupt'>)
+
+    @classmethod
+    def from_call(
+        cls,
+        func: Callable[[], TResult],
+        when: Literal["collect", "setup", "call", "teardown"],
+        reraise: type[BaseException] | tuple[type[BaseException], ...] | None = None,
+    ) -> CallInfo[TResult]:
+        """Call func, wrapping the result in a CallInfo.
+    
+        :param func:
+            The function to call. Called without arguments.
+        :type func: Callable[[], _pytest.runner.TResult]
+        :param when:
+            The phase in which the function is called.
+        :param reraise:
+            Exception or exceptions that shall propagate if raised by the
+            function, instead of being wrapped in the CallInfo.
+        """
+        excinfo = None
+        start = timing.time()
+        precise_start = timing.perf_counter()
+        try:
+>           result: TResult | None = func()
+
+../../.local/lib/python3.10/site-packages/_pytest/runner.py:341: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+>       lambda: runtest_hook(item=item, **kwds), when=when, reraise=reraise
+    )
+
+../../.local/lib/python3.10/site-packages/_pytest/runner.py:242: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <HookCaller 'pytest_runtest_call'>
+kwargs = {'item': <Function test_dropdown_updates_without_focus_interruption>}
+firstresult = False
+
+    def __call__(self, **kwargs: object) -> Any:
+        """Call the hook.
+    
+        Only accepts keyword arguments, which should match the hook
+        specification.
+    
+        Returns the result(s) of calling all registered plugins, see
+        :ref:`calling`.
+        """
+        assert (
+            not self.is_historic()
+        ), "Cannot directly call a historic hook - use call_historic instead."
+        self._verify_all_args_are_provided(kwargs)
+        firstresult = self.spec.opts.get("firstresult", False) if self.spec else False
+        # Copy because plugins may register other plugins during iteration (#438).
+>       return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+
+../../.local/lib/python3.10/site-packages/pluggy/_hooks.py:513: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <_pytest.config.PytestPluginManager object at 0x73e799121810>
+hook_name = 'pytest_runtest_call'
+methods = [<HookImpl plugin_name='runner', plugin=<module '_pytest.runner' from '/home/loganrooks/.local/lib/python3.10/site-pac...ule '_pytest.threadexception' from '/home/loganrooks/.local/lib/python3.10/site-packages/_pytest/threadexception.py'>>]
+kwargs = {'item': <Function test_dropdown_updates_without_focus_interruption>}
+firstresult = False
+
+    def _hookexec(
+        self,
+        hook_name: str,
+        methods: Sequence[HookImpl],
+        kwargs: Mapping[str, object],
+        firstresult: bool,
+    ) -> object | list[object]:
+        # called from all hookcaller instances.
+        # enable_tracing will set its own wrapping function at self._inner_hookexec
+>       return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+
+../../.local/lib/python3.10/site-packages/pluggy/_manager.py:120: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    @pytest.hookimpl(wrapper=True, tryfirst=True)
+    def pytest_runtest_call() -> Generator[None]:
+>       yield from thread_exception_runtest_hook()
+
+../../.local/lib/python3.10/site-packages/_pytest/threadexception.py:92: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def thread_exception_runtest_hook() -> Generator[None]:
+        with catch_threading_exception() as cm:
+            try:
+>               yield
+
+../../.local/lib/python3.10/site-packages/_pytest/threadexception.py:68: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    @pytest.hookimpl(wrapper=True, tryfirst=True)
+    def pytest_runtest_call() -> Generator[None]:
+>       yield from unraisable_exception_runtest_hook()
+
+../../.local/lib/python3.10/site-packages/_pytest/unraisableexception.py:95: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def unraisable_exception_runtest_hook() -> Generator[None]:
+        with catch_unraisable_exception() as cm:
+            try:
+>               yield
+
+../../.local/lib/python3.10/site-packages/_pytest/unraisableexception.py:70: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <_pytest.logging.LoggingPlugin object at 0x73e796f25720>
+item = <Function test_dropdown_updates_without_focus_interruption>
+
+    @hookimpl(wrapper=True)
+    def pytest_runtest_call(self, item: nodes.Item) -> Generator[None]:
+        self.log_cli_handler.set_when("call")
+    
+>       yield from self._runtest_for(item, "call")
+
+../../.local/lib/python3.10/site-packages/_pytest/logging.py:846: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <_pytest.logging.LoggingPlugin object at 0x73e796f25720>
+item = <Function test_dropdown_updates_without_focus_interruption>
+when = 'call'
+
+    def _runtest_for(self, item: nodes.Item, when: str) -> Generator[None]:
+        """Implement the internals of the pytest_runtest_xxx() hooks."""
+        with catching_logs(
+            self.caplog_handler,
+            level=self.log_level,
+        ) as caplog_handler, catching_logs(
+            self.report_handler,
+            level=self.log_level,
+        ) as report_handler:
+            caplog_handler.reset()
+            report_handler.reset()
+            item.stash[caplog_records_key][when] = caplog_handler.records
+            item.stash[caplog_handler_key] = caplog_handler
+    
+            try:
+>               yield
+
+../../.local/lib/python3.10/site-packages/_pytest/logging.py:829: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <CaptureManager _method='fd' _global_capturing=<MultiCapture out=<FDCapture 1 oldfd=5 _state='suspended' tmpfile=<_io....xtIOWrapper name='/dev/null' mode='r' encoding='utf-8'>> _state='suspended' _in_suspended=False> _capture_fixture=None>
+item = <Function test_dropdown_updates_without_focus_interruption>
+
+    @hookimpl(wrapper=True)
+    def pytest_runtest_call(self, item: Item) -> Generator[None]:
+        with self.item_capture("call", item):
+>           return (yield)
+E           RuntimeError: generator raised StopIteration
+
+../../.local/lib/python3.10/site-packages/_pytest/capture.py:898: RuntimeError
+=========================== short test summary info ============================
+FAILED tests/ui/test_focus_stealing_bug_BUG_FOCUS_STEAL_20250607.py::TestFocusStealingBug::test_typing_continuous_focus_preservation
+FAILED tests/ui/test_focus_stealing_bug_BUG_FOCUS_STEAL_20250607.py::TestFocusStealingBug::test_no_qtimer_threading_errors_during_typing
+FAILED tests/ui/test_focus_stealing_bug_BUG_FOCUS_STEAL_20250607.py::TestFocusStealingBug::test_dropdown_updates_without_focus_interruption
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 3 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+============================== 3 failed in 0.49s ===============================
+
+
+STDERR:
+----------------------------------------
+/home/loganrooks/.local/lib/python3.10/site-packages/pytest_asyncio/plugin.py:217: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+
+
+================================================================================
+DETAILED LOG: config_ui_failures.log
+================================================================================
+=== Config UI TEST FAILURES ===
+Timestamp: 2025-06-09 08:03:13
+Test Path: tests/ui/test_config_ui_redesign_tdd.py
+Return Code: 1
+================================================================================
+
+STDOUT:
+----------------------------------------
+============================= test session starts ==============================
+collected 13 items
+
+tests/ui/test_config_ui_redesign_tdd.py FFF
+
+=================================== FAILURES ===================================
+______ TestConfigUIRedesign.test_provider_selection_shows_clear_sections _______
+
+self = <ui.test_config_ui_redesign_tdd.TestConfigUIRedesign object at 0x7c79a31d4e80>
+
+    def test_provider_selection_shows_clear_sections(self):
+        """
+        ANCHOR: When user selects a provider, they see a dedicated section
+        with only the fields relevant to that provider
+        """
+        # GIVEN: User opens configuration
+        # WHEN: User selects "openai" provider
+        # THEN: They see OpenAI-specific section with API key, model selection
+        # AND: Other provider sections are hidden
+        # AND: Clear visual indicator of what's required vs optional
+    
+>       assert False, "Need to implement provider-specific sections for ALL providers"
+E       AssertionError: Need to implement provider-specific sections for ALL providers
+E       assert False
+
+tests/ui/test_config_ui_redesign_tdd.py:46: AssertionError
+____ TestConfigUIRedesign.test_model_selection_is_searchable_with_metadata _____
+
+self = <ui.test_config_ui_redesign_tdd.TestConfigUIRedesign object at 0x7c79a31d4fd0>
+
+    def test_model_selection_is_searchable_with_metadata(self):
+        """
+        ANCHOR: Model selection provides search functionality and shows
+        helpful metadata to guide user choice
+        """
+        # GIVEN: User has selected a provider (e.g., OpenAI)
+        # WHEN: User clicks model dropdown
+        # THEN: They see searchable list of models with:
+        #   - Model name clearly displayed
+        #   - Dimensions (e.g., "1536 dimensions")
+        #   - Cost indicator (e.g., "$0.0001/1K tokens")
+        #   - Special features (e.g., "Supports custom dimensions")
+        #   - Search/filter functionality
+        # AND: They can type to filter models
+        # AND: They see tooltip with detailed model information
+    
+>       assert False, "Need to implement searchable model dropdown with metadata"
+E       AssertionError: Need to implement searchable model dropdown with metadata
+E       assert False
+
+tests/ui/test_config_ui_redesign_tdd.py:64: AssertionError
+______ TestConfigUIRedesign.test_progressive_disclosure_hides_complexity _______
+
+self = <ui.test_config_ui_redesign_tdd.TestConfigUIRedesign object at 0x7c79a31d5180>
+
+    def test_progressive_disclosure_hides_complexity(self):
+        """
+        ANCHOR: UI starts simple and reveals complexity progressively
+        as user makes choices
+        """
+        # GIVEN: User opens configuration for first time
+        # THEN: They see simple provider selection
+        # AND: Advanced options are hidden behind "Advanced" section
+        # WHEN: User selects complex provider (e.g., Vertex AI)
+        # THEN: They see guided setup with clear steps
+        # AND: Optional fields are clearly marked as optional
+    
+>       assert False, "Need to implement progressive disclosure pattern"
+E       AssertionError: Need to implement progressive disclosure pattern
+E       assert False
+
+tests/ui/test_config_ui_redesign_tdd.py:78: AssertionError
+=========================== short test summary info ============================
+FAILED tests/ui/test_config_ui_redesign_tdd.py::TestConfigUIRedesign::test_provider_selection_shows_clear_sections
+FAILED tests/ui/test_config_ui_redesign_tdd.py::TestConfigUIRedesign::test_model_selection_is_searchable_with_metadata
+FAILED tests/ui/test_config_ui_redesign_tdd.py::TestConfigUIRedesign::test_progressive_disclosure_hides_complexity
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 3 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+============================== 3 failed in 0.36s ===============================
+
+
+STDERR:
+----------------------------------------
+/home/loganrooks/.local/lib/python3.10/site-packages/pytest_asyncio/plugin.py:217: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+
+
+================================================================================
+DETAILED LOG: delayed_init_failures.log
+================================================================================
+=== Delayed Init TEST FAILURES ===
+TIMEOUT: Tests hung for >30 seconds
+This indicates pytest collection or execution is hanging

@@ -8,12 +8,23 @@ with loading states, error handling, and intelligent caching.
 
 import logging
 from typing import List, Optional, Callable
-from PyQt5.Qt import (
-    QComboBox, QCompleter, QStringListModel, QTimer, QMovie, QLabel,
-    QHBoxLayout, QWidget, QProgressBar, QToolButton, QMenu, QAction,
-    Qt, QSize, QPixmap, QIcon, QPainter, QColor, QBrush, QPen, QApplication,
-    QEvent, QFocusEvent
-)
+
+# Use Calibre's Qt abstraction layer instead of direct PyQt5 imports
+try:
+    from qt.core import (
+        QComboBox, QCompleter, QStringListModel, QTimer, QMovie, QLabel,
+        QHBoxLayout, QWidget, QProgressBar, QToolButton, QMenu, QAction,
+        Qt, QSize, QPixmap, QIcon, QPainter, QColor, QBrush, QPen, QApplication,
+        QEvent, QFocusEvent
+    )
+except ImportError:
+    # Fallback for testing outside Calibre
+    from PyQt5.Qt import (
+        QComboBox, QCompleter, QStringListModel, QTimer, QMovie, QLabel,
+        QHBoxLayout, QWidget, QProgressBar, QToolButton, QMenu, QAction,
+        Qt, QSize, QPixmap, QIcon, QPainter, QColor, QBrush, QPen, QApplication,
+        QEvent, QFocusEvent
+    )
 
 try:
     from ..core.location_fetcher import LocationDataFetcher, CloudRegion
@@ -96,21 +107,42 @@ class DynamicLocationComboBox(QComboBox):
     """
     
     def __init__(self, provider_type: str, parent=None):
-        super().__init__(parent)
-        self.provider_type = provider_type
-        self.all_regions: List[CloudRegion] = []
-        self.is_loading = False
+        print(f"[COMBO] 🚀 Initializing DynamicLocationComboBox for {provider_type}")
         
-        # Initialize fetcher
-        self.fetcher = LocationDataFetcher() if LocationDataFetcher else None
-        
-        self._setup_combo_box()
-        self._setup_loading_indicator()
-        self._setup_refresh_functionality()
-        self._setup_filtering()
-        
-        # Start initial data fetch
-        self._fetch_regions_async()
+        try:
+            super().__init__(parent)
+            self.provider_type = provider_type
+            self.all_regions: List[CloudRegion] = []
+            self.is_loading = False
+            print(f"[COMBO] ✅ Basic initialization complete for {provider_type}")
+            
+            # Initialize fetcher
+            self.fetcher = LocationDataFetcher() if LocationDataFetcher else None
+            print(f"[COMBO] ✅ Fetcher initialized: {self.fetcher is not None}")
+            
+            print(f"[COMBO] 🔧 Setting up combo box...")
+            self._setup_combo_box()
+            
+            print(f"[COMBO] 🔧 Setting up loading indicator...")
+            self._setup_loading_indicator()
+            
+            print(f"[COMBO] 🔧 Setting up refresh functionality...")
+            self._setup_refresh_functionality()
+            
+            print(f"[COMBO] 🔧 Setting up filtering...")
+            self._setup_filtering()
+            
+            print(f"[COMBO] 🔧 Starting initial data fetch...")
+            # Start initial data fetch
+            self._fetch_regions_async()
+            
+            print(f"[COMBO] ✅ DynamicLocationComboBox fully initialized for {provider_type}")
+            
+        except Exception as e:
+            print(f"[COMBO] ❌ CRITICAL ERROR during initialization: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
     
     def _setup_combo_box(self):
         """Configure the combo box for optimal filtering experience using QCompleter"""
@@ -131,39 +163,75 @@ class DynamicLocationComboBox(QComboBox):
         if self.lineEdit():
             self.lineEdit().setPlaceholderText(placeholder)
         
-        # SOLUTION: Use QCompleter for live filtering popup (doesn't steal focus!)
+        # SOLUTION: Use QCompleter for live filtering popup (BETTER APPROACH - doesn't steal focus!)
+        print(f"[COMBO] 🔧 Setting up QCompleter...")
         self._setup_completer()
+        print(f"[COMBO] ✅ Configured {self.provider_type} combo box successfully")
             
         # Enhanced interaction patterns for better UX
         self._setup_interaction_patterns()
     
     def _setup_completer(self):
-        """Setup QCompleter for live filtering without focus stealing"""
-        # Create completer with custom string list model
-        self.completer = QCompleter(self)
-        self.completer_model = QStringListModel(self)
-        self.completer.setModel(self.completer_model)
+        """Setup QCompleter for live filtering without focus stealing (BETTER APPROACH)"""
+        print(f"[COMBO] 🔧 Setting up QCompleter for {self.provider_type}")
         
-        # Configure completer for optimal UX
-        self.completer.setCaseSensitivity(Qt.CaseInsensitive)
-        self.completer.setFilterMode(Qt.MatchContains)  # Match anywhere in string
-        self.completer.setMaxVisibleItems(15)
-        
-        # CRITICAL: This makes completer show popup without stealing focus!
-        self.completer.setCompletionMode(QCompleter.PopupCompletion)
-        
-        # Connect to line edit
-        if self.lineEdit():
-            self.lineEdit().setCompleter(self.completer)
-        
-        # Handle completion selection
-        self.completer.activated.connect(self._on_completion_selected)
-        
-        # Store mapping of display text to region code for selection
-        self.completion_to_code = {}
+        try:
+            # Create completer with custom string list model
+            self.completer = QCompleter(self)
+            self.completer_model = QStringListModel(self)
+            self.completer.setModel(self.completer_model)
+            print(f"[COMBO] ✅ QCompleter and model created")
+            
+            # Configure completer for optimal UX
+            self.completer.setCaseSensitivity(Qt.CaseInsensitive)
+            self.completer.setFilterMode(Qt.MatchContains)  # Match anywhere in string
+            self.completer.setMaxVisibleItems(15)
+            print(f"[COMBO] ✅ QCompleter configured")
+            
+            # CRITICAL: Set completion mode - research shows PopupCompletion exists in Qt6
+            print(f"[COMBO] 🔍 Checking available completion modes...")
+            completion_modes = []
+            for attr in ['PopupCompletion', 'UnfilteredPopupCompletion', 'InlineCompletion']:
+                if hasattr(QCompleter, attr):
+                    mode_value = getattr(QCompleter, attr)
+                    completion_modes.append(f"{attr}={mode_value}")
+                else:
+                    completion_modes.append(f"{attr}=MISSING")
+            print(f"[COMBO] 🔍 Available modes: {completion_modes}")
+            
+            # Try PopupCompletion first (standard mode)
+            if hasattr(QCompleter, 'PopupCompletion'):
+                self.completer.setCompletionMode(QCompleter.PopupCompletion)
+                print(f"[COMBO] ✅ Using QCompleter.PopupCompletion")
+            elif hasattr(QCompleter, 'UnfilteredPopupCompletion'):
+                self.completer.setCompletionMode(QCompleter.UnfilteredPopupCompletion)
+                print(f"[COMBO] ✅ Using QCompleter.UnfilteredPopupCompletion (fallback)")
+            else:
+                print(f"[COMBO] ❌ No suitable completion mode found")
+                return
+            
+            # Connect to line edit
+            if self.lineEdit():
+                self.lineEdit().setCompleter(self.completer)
+                print(f"[COMBO] ✅ QCompleter connected to line edit")
+            
+            # Handle completion selection
+            self.completer.activated.connect(self._on_completion_selected)
+            print(f"[COMBO] ✅ QCompleter activation signal connected")
+            
+            # Store mapping of display text to region code for selection
+            self.completion_to_code = {}
+            print(f"[COMBO] ✅ QCompleter setup complete for {self.provider_type}")
+            
+        except Exception as e:
+            print(f"[COMBO] ❌ CRITICAL ERROR setting up QCompleter: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
     
     def _on_completion_selected(self, completion_text: str):
         """Handle when user selects a completion"""
+        print(f"[COMBO] 🎯 Completion selected: {completion_text}")
         region_code = self.completion_to_code.get(completion_text, completion_text)
         
         # Set the region code in the line edit
@@ -171,11 +239,15 @@ class DynamicLocationComboBox(QComboBox):
             self.lineEdit().setText(region_code)
             # Trigger any change handlers
             self.editTextChanged.emit(region_code)
+            print(f"[COMBO] ✅ Set region code: {region_code}")
     
     def _update_completer_data(self):
         """Update completer with current region data"""
         if not hasattr(self, 'completer') or not self.completer:
+            print(f"[COMBO] ⚠️ No completer to update")
             return
+        
+        print(f"[COMBO] 🔄 Updating completer data with {len(self.all_regions)} regions")
         
         completion_strings = []
         self.completion_to_code.clear()
@@ -197,6 +269,7 @@ class DynamicLocationComboBox(QComboBox):
         
         # Update the model
         self.completer_model.setStringList(completion_strings)
+        print(f"[COMBO] ✅ Completer updated with {len(completion_strings)} items")
     
     def _setup_loading_indicator(self):
         """Setup loading indicator widget"""
@@ -257,20 +330,24 @@ class DynamicLocationComboBox(QComboBox):
             
             def enhanced_double_click(event):
                 """Double-click to select text and show completer popup"""
+                print(f"[COMBO] 🖱️ Double-click detected")
                 # Call original handler to select text
                 original_double_click(event)
                 
                 # Force completer to show all completions
                 if hasattr(self, 'completer') and self.completer:
+                    print(f"[COMBO] 🎯 Triggering completer popup from double-click")
                     self.completer.complete()
             
             def enhanced_focus_in(event):
                 """Focus in - show completer popup for easier access"""
+                print(f"[COMBO] 👁️ Focus in detected")
                 # Call original handler first
                 original_focus_in(event)
                 
                 # Show completer popup when focused (if we have data)
                 if hasattr(self, 'completer') and self.completer and self.all_regions:
+                    print(f"[COMBO] 🎯 Triggering completer popup from focus in")
                     self.completer.complete()
             
             # Install enhanced event handlers

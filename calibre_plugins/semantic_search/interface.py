@@ -9,18 +9,10 @@ from calibre.gui2.actions import InterfaceAction
 
 # Import job management classes
 try:
-    from calibre.gui2.threaded_jobs import ThreadedJob
-except ImportError:
-    # Fallback for test environment
-    ThreadedJob = None
-
-try:
     from .background_jobs import BackgroundJobManager
 except ImportError:
     # May not be available during testing
     BackgroundJobManager = None
-
-logger = logging.getLogger(__name__)
 
 # Import from qt.core instead of PyQt5 for Calibre compatibility
 try:
@@ -31,6 +23,7 @@ except ImportError:
     QToolButton = QtCompat.QToolButton
 
 from calibre_plugins.semantic_search.config import SemanticSearchConfig
+from calibre_plugins.semantic_search.core.logging_config import setup_logging
 
 # Qt imports for threading support
 from PyQt5.Qt import QTimer
@@ -60,6 +53,13 @@ class SemanticSearchInterface(InterfaceAction):
         """
         This method is called once per plugin, do initial setup here
         """
+        # Initialize logging system first
+        setup_logging(self.name)
+        
+        # Get logger for this module
+        self.logger = logging.getLogger(f'calibre_plugins.semantic_search.interface')
+        self.logger.info("SemanticSearchInterface genesis() starting")
+        
         # Set the icon for this interface action
         # The icon should be loaded from action_spec automatically
         # but we can also try to load a custom icon
@@ -263,49 +263,25 @@ class SemanticSearchInterface(InterfaceAction):
             )
             return
         
-        # Use ThreadedJob if available, fallback to BackgroundJobManager
-        if ThreadedJob is not None:
-            # Create ThreadedJob for proper Calibre integration
-            job = ThreadedJob(
-                'semantic_search_indexing',  # Job name/identifier
-                f'Indexing {len(book_ids)} books for semantic search',  # Job description
-                self._run_indexing_job,  # Function to run in background
-                (),  # args tuple (empty - our function doesn't need args)
-                {},  # kwargs dict (empty - our function doesn't need kwargs)  
-                self._indexing_job_complete,  # Callback when job completes
-                max_concurrent_count=1  # Additional option
-            )
-            
-            # Store book_ids on interface for job function to access
-            # (ThreadedJob doesn't pass job object to function)
-            self.current_indexing_book_ids = book_ids
-            
-            # Start the job - this will show in Calibre's job indicator
-            if hasattr(self.gui, 'job_manager') and self.gui.job_manager:
-                self.gui.job_manager.run_threaded_job(job)
-            else:
-                # Fallback: start job directly
-                job.start_work()
-            
-            # Store job reference for potential cancellation
-            self.current_indexing_job = job
-        else:
-            # Fallback to BackgroundJobManager for test environment
-            if not hasattr(self, 'job_manager'):
-                if BackgroundJobManager is None:
-                    error_dialog(
-                        self.gui,
-                        "Job Manager Error",
-                        "Job management not available.",
-                        show=True,
-                    )
-                    return
-                self.job_manager = BackgroundJobManager()
-            
-            # Start indexing job
-            self.current_indexing_job_id = self.job_manager.start_indexing_job(
-                book_ids, self._indexing_job_complete
-            )
+        # Use BackgroundJobManager for job management
+        if not hasattr(self, 'job_manager'):
+            if BackgroundJobManager is None:
+                error_dialog(
+                    self.gui,
+                    "Job Manager Error",
+                    "Job management not available.",
+                    show=True,
+                )
+                return
+            self.job_manager = BackgroundJobManager()
+        
+        # Start indexing job with services passed to job manager
+        self.current_indexing_job_id = self.job_manager.start_indexing_job(
+            book_ids, 
+            self._indexing_job_complete,
+            indexing_service=self.indexing_service,
+            gui=self.gui
+        )
         
         # Show status message
         if hasattr(self.gui, 'status_bar') and self.gui.status_bar:
@@ -313,134 +289,47 @@ class SemanticSearchInterface(InterfaceAction):
                 f'Starting indexing of {len(book_ids)} books...', 3000
             )
 
-    def _run_indexing_job(self, **kwargs):
-        """
-        Run indexing in background thread (ThreadedJob callback).
-        This runs in a separate thread - no GUI operations allowed!
-        
-        Calibre passes additional kwargs:
-        - notifications: queue.Queue for progress updates
-        - abort: threading.Event to signal cancellation
-        - log: logging object for job logging
-        """
-        import asyncio
-        
-        # Extract Calibre's additional arguments
-        notifications = kwargs.get('notifications')
-        abort = kwargs.get('abort')
-        log = kwargs.get('log')
-        
-        try:
-            # Get book_ids from interface (stored before job started)
-            book_ids = getattr(self, 'current_indexing_book_ids', [])
-            if not book_ids:
-                if log:
-                    log.error("No book_ids found for indexing job")
-                return None
-            
-            # Check if job was aborted before starting
-            if abort and abort.is_set():
-                if log:
-                    log.info("Indexing job aborted before starting")
-                return None
-            
-            # Create event loop for this thread
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
-            try:
-                # Log start of indexing
-                if log:
-                    log.info(f"Starting indexing of {len(book_ids)} books")
-                
-                # Run the indexing
-                stats = loop.run_until_complete(
-                    self.indexing_service.index_books(book_ids, reindex=False)
-                )
-                
-                # Log completion
-                if log:
-                    log.info(f"Indexing completed: {stats.get('successful_books', 0)} successful, {stats.get('failed_books', 0)} failed")
-                
-                return stats  # This will be passed to _indexing_job_complete
-                
-            finally:
-                loop.close()
-                
-        except Exception as e:
-            # Log error
-            if log:
-                log.error(f"Indexing job failed: {str(e)}")
-            # Exception will be caught by ThreadedJob and passed to callback
-            raise
 
-    def _indexing_job_complete(self, job_or_result):
-        """Handle indexing job completion from ThreadedJob or BackgroundJobManager"""
+    def _indexing_job_complete(self, result):
+        """Handle indexing job completion from BackgroundJobManager"""
         
-        # Handle ThreadedJob completion
-        if hasattr(job_or_result, 'failed'):  # This is a ThreadedJob
-            job = job_or_result
-            if job.failed:
-                # Job failed with exception
-                error_dialog(
-                    self.gui,
-                    "Indexing Error",
-                    f"Indexing failed:\n\n{str(job.exception)}",
-                    show=True,
-                )
-            else:
-                # Job completed successfully
-                stats = job.result
-                
-                success_count = stats.get('successful_books', 0)
-                failed_count = stats.get('failed_books', 0)
-                total_chunks = stats.get('total_chunks', 0)
-                total_time = stats.get('total_time', 0)
-                
-                message = (
-                    f"Indexing completed!\n\n"
-                    f"Successfully indexed: {success_count} books\n"
-                    f"Failed: {failed_count} books\n"
-                    f"Total text chunks created: {total_chunks}\n"
-                    f"Time taken: {total_time:.1f} seconds"
-                )
-                
-                if failed_count > 0:
-                    errors = stats.get('errors', [])
-                    error_details = "\n".join([f"Book {e['book_id']}: {e['error']}" for e in errors[:3]])
-                    if len(errors) > 3:
-                        error_details += f"\n... and {len(errors) - 3} more errors"
-                    message += f"\n\nErrors:\n{error_details}"
-                
-                if failed_count > 0:
-                    error_dialog(self.gui, "Indexing Results", message, show=True)
-                else:
-                    info_dialog(self.gui, "Indexing Complete", message, show=True)
+        if "error" in result:
+            error_dialog(
+                self.gui,
+                "Indexing Error", 
+                f"Indexing failed:\n\n{result['error']}",
+                show=True
+            )
+        else:
+            # Handle successful completion with detailed stats
+            success_count = result.get('successful_books', 0)
+            failed_count = result.get('failed_books', 0)
+            total_chunks = result.get('total_chunks', 0)
+            total_time = result.get('total_time', 0)
             
-            # Clear job reference
-            if hasattr(self, 'current_indexing_job'):
-                del self.current_indexing_job
+            message = (
+                f"Indexing completed!\n\n"
+                f"Successfully indexed: {success_count} books\n"
+                f"Failed: {failed_count} books\n"
+                f"Total text chunks created: {total_chunks}\n"
+                f"Time taken: {total_time:.1f} seconds"
+            )
+            
+            if failed_count > 0:
+                errors = result.get('errors', [])
+                error_details = "\n".join([f"Book {e['book_id']}: {e['error']}" for e in errors[:3]])
+                if len(errors) > 3:
+                    error_details += f"\n... and {len(errors) - 3} more errors"
+                message += f"\n\nErrors:\n{error_details}"
+            
+            if failed_count > 0:
+                error_dialog(self.gui, "Indexing Results", message, show=True)
+            else:
+                info_dialog(self.gui, "Indexing Complete", message, show=True)
         
-        else:  # Handle BackgroundJobManager completion
-            result = job_or_result
-            if "error" in result:
-                error_dialog(
-                    self.gui,
-                    "Indexing Error", 
-                    f"Indexing failed:\n\n{result['error']}",
-                    show=True
-                )
-            else:
-                info_dialog(
-                    self.gui,
-                    "Indexing Complete",
-                    f"Successfully indexed {result.get('indexed_books', 0)} books!",
-                    show=True
-                )
-            
-            # Clear job reference
-            if hasattr(self, 'current_indexing_job_id'):
-                del self.current_indexing_job_id
+        # Clear job reference
+        if hasattr(self, 'current_indexing_job_id'):
+            del self.current_indexing_job_id
 
     def show_indexing_status(self):
         """Show the current indexing status"""
@@ -533,7 +422,7 @@ Last Indexed: {status.get('last_indexed', 'Never')}"""
 
     def _initialize_services(self):
         """Initialize services on plugin startup"""
-        logger.info("=== _initialize_services() called ===")
+        self.logger.info("=== _initialize_services() called ===")
         try:
             import os
             from calibre_plugins.semantic_search.core.embedding_service import create_embedding_service
@@ -546,129 +435,142 @@ Last Indexed: {status.get('last_indexed', 'Never')}"""
             
             # Set up database path
             library_path = self.gui.library_path
-            logger.info(f"Library path: {library_path}")
+            self.logger.info(f"Library path: {library_path}")
             db_dir = os.path.join(library_path, 'semantic_search')
             os.makedirs(db_dir, exist_ok=True)
             self.db_path = os.path.join(db_dir, 'embeddings.db')
-            logger.info(f"Database path will be: {self.db_path}")
-            logger.info(f"Database file exists: {os.path.exists(self.db_path)}")
+            self.logger.info(f"Database path will be: {self.db_path}")
+            self.logger.info(f"Database file exists: {os.path.exists(self.db_path)}")
             
             # Initialize database and repositories
-            print(f"[Interface] Initializing database at: {self.db_path}")
+            self.logger.info(f"Initializing database at: {self.db_path}")
             try:
-                print("[Interface] Creating EmbeddingRepository...")
+                self.logger.info("Creating EmbeddingRepository...")
                 self.embedding_repo = EmbeddingRepository(self.db_path)
-                print("[Interface] EmbeddingRepository created successfully")
+                self.logger.info("EmbeddingRepository created successfully")
             except Exception as e:
-                print(f"[Interface] ERROR: Failed to create EmbeddingRepository: {e}")
+                self.logger.error(f"Failed to create EmbeddingRepository: {e}")
                 import traceback
-                print(traceback.format_exc())
+                self.logger.error(traceback.format_exc())
                 self.embedding_repo = None
             
             # Try multiple ways to get Calibre database
-            logger.info("Checking CalibreRepository availability...")
+            self.logger.info("Checking CalibreRepository availability...")
             self.calibre_repo = None
             
             # Method 1: current_db.new_api (preferred)
             if hasattr(self.gui, 'current_db') and self.gui.current_db:
-                logger.info("current_db is available")
+                self.logger.info("current_db is available")
                 if hasattr(self.gui.current_db, 'new_api'):
-                    logger.info("current_db has new_api, creating CalibreRepository")
-                    self.calibre_repo = CalibreRepository(self.gui.current_db.new_api)
-                    logger.info("CalibreRepository created successfully")
+                    try:
+                        self.logger.info("current_db has new_api, creating CalibreRepository")
+                        self.calibre_repo = CalibreRepository(self.gui.current_db.new_api)
+                        self.logger.info("CalibreRepository created successfully")
+                    except Exception as e:
+                        self.logger.warning(f"Failed to create CalibreRepository with current_db.new_api: {e}")
+                        import traceback
+                        self.logger.warning(traceback.format_exc())
                 else:
-                    logger.warning("current_db doesn't have new_api")
+                    self.logger.warning("current_db doesn't have new_api")
             
             # Method 2: library_view.model().db (fallback)
             if not self.calibre_repo and hasattr(self.gui, 'library_view'):
                 try:
-                    logger.info("Trying library_view.model().db")
+                    self.logger.info("Trying library_view.model().db")
                     model = self.gui.library_view.model()
                     if model and hasattr(model, 'db'):
                         if hasattr(model.db, 'new_api'):
-                            logger.info("Creating CalibreRepository with library_view.model().db.new_api")
-                            self.calibre_repo = CalibreRepository(model.db.new_api)
-                            logger.info("CalibreRepository created successfully via library_view")
+                            try:
+                                self.logger.info("Creating CalibreRepository with library_view.model().db.new_api")
+                                self.calibre_repo = CalibreRepository(model.db.new_api)
+                                self.logger.info("CalibreRepository created successfully via library_view")
+                            except Exception as e:
+                                self.logger.warning(f"Failed to create CalibreRepository with library_view.model().db.new_api: {e}")
                         else:
-                            logger.warning("library_view.model().db doesn't have new_api")
+                            self.logger.warning("library_view.model().db doesn't have new_api")
                 except Exception as e:
-                    logger.warning(f"Failed to get db from library_view: {e}")
+                    self.logger.warning(f"Failed to get db from library_view: {e}")
             
             # Method 3: Direct db access (last resort)
             if not self.calibre_repo and hasattr(self.gui, 'db'):
-                logger.info("Trying gui.db")
-                if hasattr(self.gui.db, 'new_api'):
-                    logger.info("Creating CalibreRepository with gui.db.new_api")
-                    self.calibre_repo = CalibreRepository(self.gui.db.new_api)
-                    logger.info("CalibreRepository created successfully via gui.db")
-                else:
-                    logger.warning("gui.db doesn't have new_api")
+                try:
+                    self.logger.info("Trying gui.db")
+                    if hasattr(self.gui.db, 'new_api'):
+                        self.logger.info("Creating CalibreRepository with gui.db.new_api")
+                        self.calibre_repo = CalibreRepository(self.gui.db.new_api)
+                        self.logger.info("CalibreRepository created successfully via gui.db")
+                    else:
+                        self.logger.warning("gui.db doesn't have new_api")
+                except Exception as e:
+                    self.logger.warning(f"Failed to create CalibreRepository with gui.db.new_api: {e}")
+                    import traceback
+                    self.logger.warning(traceback.format_exc())
                     
             if not self.calibre_repo:
-                logger.warning("Could not create CalibreRepository - will retry later")
+                self.logger.warning("Could not create CalibreRepository - will retry later")
             
             # Create services
-            logger.info("Creating embedding and text processing services...")
+            self.logger.info("Creating embedding and text processing services...")
             config_dict = self.config.as_dict()
             self.embedding_service = create_embedding_service(config_dict)
             self.text_processor = TextProcessor()
-            logger.info("Embedding and text processing services created")
+            self.logger.info("Embedding and text processing services created")
             
             # Create indexing service only if we have both repositories
-            logger.info("Attempting to create IndexingService...")
+            self.logger.info("Attempting to create IndexingService...")
             if self.calibre_repo and self.embedding_repo:
-                logger.info("Both repositories available, creating IndexingService")
+                self.logger.info("Both repositories available, creating IndexingService")
                 self.indexing_service = IndexingService(
                     text_processor=self.text_processor,
                     embedding_service=self.embedding_service,
                     embedding_repo=self.embedding_repo,
                     calibre_repo=self.calibre_repo
                 )
-                logger.info("IndexingService created successfully")
+                self.logger.info("IndexingService created successfully")
             else:
-                logger.warning(f"Cannot create IndexingService - calibre_repo: {self.calibre_repo is not None}, embedding_repo: {self.embedding_repo is not None}")
+                self.logger.warning(f"Cannot create IndexingService - calibre_repo: {self.calibre_repo is not None}, embedding_repo: {self.embedding_repo is not None}")
                 self.indexing_service = None
             
             # Summary of what was created
-            logger.info("=== SERVICE INITIALIZATION SUMMARY ===")
-            logger.info(f"Database path: {self.db_path}")
-            logger.info(f"EmbeddingRepository: {'✓' if self.embedding_repo else '✗'}")
-            logger.info(f"CalibreRepository: {'✓' if self.calibre_repo else '✗'}")
-            logger.info(f"EmbeddingService: {'✓' if self.embedding_service else '✗'}")
-            logger.info(f"IndexingService: {'✓' if self.indexing_service else '✗'}")
-            logger.info("=== END SUMMARY ===")
+            self.logger.info("=== SERVICE INITIALIZATION SUMMARY ===")
+            self.logger.info(f"Database path: {self.db_path}")
+            self.logger.info(f"EmbeddingRepository: {'✓' if self.embedding_repo else '✗'}")
+            self.logger.info(f"CalibreRepository: {'✓' if self.calibre_repo else '✗'}")
+            self.logger.info(f"EmbeddingService: {'✓' if self.embedding_service else '✗'}")
+            self.logger.info(f"IndexingService: {'✓' if self.indexing_service else '✗'}")
+            self.logger.info("=== END SUMMARY ===")
             
             if self.indexing_service:
-                logger.info("All services initialized successfully")
+                self.logger.info("All services initialized successfully")
             else:
-                logger.warning("Services partially initialized - indexing may not work")
+                self.logger.warning("Services partially initialized - indexing may not work")
             
         except Exception as e:
-            logger.error(f"Failed to initialize services: {e}")
+            self.logger.error(f"Failed to initialize services: {e}")
             import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
             # Store the error for display
             self.initialization_error = str(e)
             # Services will be created on-demand if initialization fails
     
     def get_embedding_service(self):
         """Get the embedding service, creating if needed"""
-        logger.info("get_embedding_service() called")
+        self.logger.info("get_embedding_service() called")
         if not hasattr(self, 'embedding_service') or not self.embedding_service:
-            logger.info("embedding_service not available, calling _initialize_services()")
+            self.logger.info("embedding_service not available, calling _initialize_services()")
             self._initialize_services()
         else:
-            logger.info("embedding_service already available")
+            self.logger.info("embedding_service already available")
         return self.embedding_service if hasattr(self, 'embedding_service') else None
     
     def get_indexing_service(self):
         """Get the indexing service, creating if needed"""
-        logger.info("get_indexing_service() called")
+        self.logger.info("get_indexing_service() called")
         if not hasattr(self, 'indexing_service') or not self.indexing_service:
-            logger.info("indexing_service not available, calling _initialize_services()")
+            self.logger.info("indexing_service not available, calling _initialize_services()")
             self._initialize_services()
         else:
-            logger.info("indexing_service already available")
+            self.logger.info("indexing_service already available")
         return self.indexing_service if hasattr(self, 'indexing_service') else None
 
     def library_changed(self, db):
@@ -687,13 +589,13 @@ Last Indexed: {status.get('last_indexed', 'Never')}"""
         try:
             if hasattr(self, 'embedding_repo') and self.embedding_repo:
                 status = self.embedding_repo.db.verify_schema()
-                logger.info(f"Database status: {status}")
+                self.logger.info(f"Database status: {status}")
                 return status
             else:
-                logger.warning("No embedding repository available for debugging")
+                self.logger.warning("No embedding repository available for debugging")
                 return {"error": "No embedding repository"}
         except Exception as e:
-            logger.error(f"Error checking database state: {e}")
+            self.logger.error(f"Error checking database state: {e}")
             return {"error": str(e)}
 
     
@@ -783,7 +685,7 @@ Last Indexed: {status.get('last_indexed', 'Never')}"""
                 )
                 
         except Exception as e:
-            logger.error(f"Error finding similar books: {e}")
+            self.logger.error(f"Error finding similar books: {e}")
             error_dialog(
                 self.gui,
                 "Search Error", 

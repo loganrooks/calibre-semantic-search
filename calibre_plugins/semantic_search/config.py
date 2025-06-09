@@ -1,13 +1,12 @@
 """
-Simplified Configuration management for Semantic Search plugin
-Focus on UI redesign without complex discovery system
+ConfigWidget - MVP Pattern Implementation
+
+This is the "dumb" view component that only handles Qt UI setup and simple setters/getters.
+All business logic has been moved to ConfigPresenter following DEVELOPMENT_GUIDE.md MVP patterns.
 """
 
-import os
-from pathlib import Path
-from typing import Any, Dict, Optional
+import logging
 
-from calibre.utils.config import JSONConfig
 from PyQt5.Qt import (
     QApplication,
     QCheckBox,
@@ -29,177 +28,64 @@ from PyQt5.Qt import (
     QWidget,
 )
 
-# LocationComboBox will be imported lazily inside ConfigWidget to avoid circular imports
+# Import configuration manager
+from .config_manager import SemanticSearchConfig
 
-# Default configuration values
-DEFAULTS = {
-    "embedding_provider": "mock",
-    "embedding_model": "text-embedding-preview-0815",
-    "embedding_dimensions": 768,
-    "chunk_size": 512,
-    "chunk_overlap": 50,
-    "api_keys": {},
-    "search_options": {
-        "default_limit": 20,
-        "similarity_threshold": 0.7,
-        "scope": "library",
-    },
-    "ui_options": {
-        "floating_window": False,
-        "window_opacity": 0.95,
-        "remember_position": True,
-    },
-    "performance": {
-        "cache_enabled": True,
-        "cache_size_mb": 100,
-        "batch_size": 100,
-        "max_concurrent_requests": 3,
-    },
-}
-
-
-class SemanticSearchConfig:
-    """Configuration management using Calibre's JSONConfig"""
-
-    def __init__(self):
-        self.config = JSONConfig("plugins/semantic_search")
-        
-        # Set defaults for any missing keys
-        for key, value in DEFAULTS.items():
-            if key not in self.config:
-                self.config[key] = value
-
-    def get(self, key: str, default: Any = None) -> Any:
-        """Get configuration value"""
-        keys = key.split(".")
-        value = self.config
-        for k in keys:
-            if isinstance(value, dict) and k in value:
-                value = value[k]
-            else:
-                return default
-        return value
-
-    def set(self, key: str, value: Any) -> None:
-        """Set configuration value"""
-        keys = key.split(".")
-        config = self.config
-        for k in keys[:-1]:
-            if k not in config:
-                config[k] = {}
-            config = config[k]
-        config[keys[-1]] = value
-
-    def save(self) -> None:
-        """Save configuration - JSONConfig auto-saves when modified"""
-        pass  # JSONConfig auto-saves, no explicit save needed
-
-    def as_dict(self) -> Dict[str, Any]:
-        """Return configuration as dictionary for service creation"""
-        return dict(self.config)
+# Import presenter for MVP pattern
+from .presenters.config_presenter import ConfigPresenter
 
 
 class ConfigWidget(QWidget):
-    """Simplified Configuration widget focusing on UI redesign"""
+    """
+    MVP Pattern ConfigWidget - 'Dumb' View Component
+    
+    ARCHITECTURE COMPLIANCE:
+    - Only handles Qt widget setup and layout
+    - Simple setter/getter methods for UI updates
+    - Delegates ALL business logic to ConfigPresenter
+    - NO configuration management in view
+    - NO validation or connection testing in view
+    """
 
     def __init__(self):
         super().__init__()
-        self.config = SemanticSearchConfig()
+        
+        # Initialize logging (MVP pattern - view can have logger)
+        self.logger = logging.getLogger('calibre_plugins.semantic_search.ui.config')
+        self.logger.info("ConfigWidget initializing (MVP pattern)")
+        
+        # Set up UI first
         self._setup_ui()
-        self._load_settings()
-
-    def _get_location_combo_box_class(self):
-        """
-        Lazy import of LocationComboBox to avoid circular import issues.
         
-        Returns:
-            LocationComboBox class or None if import fails
-        """
-        print("[CONFIG] Lazy loading LocationComboBox...")
+        # Initialize presenter (MVP pattern)
+        self.presenter = ConfigPresenter(self)
         
-        try:
-            print("[CONFIG] Attempting DynamicLocationComboBox import...")
-            from .ui.dynamic_location_combo_box import DynamicLocationComboBox
-            print(f"[CONFIG] ✅ SUCCESS: DynamicLocationComboBox imported: {DynamicLocationComboBox}")
-            return DynamicLocationComboBox
-        except ImportError as e:
-            print(f"[CONFIG] ❌ DynamicLocationComboBox import failed: {e}")
-            # Fallback to basic LocationComboBox if DynamicLocationComboBox not available
-            try:
-                print("[CONFIG] Attempting basic LocationComboBox import...")
-                from .ui.location_combo_box import LocationComboBox
-                print(f"[CONFIG] ✅ FALLBACK: Basic LocationComboBox imported: {LocationComboBox}")
-                return LocationComboBox
-            except ImportError as e2:
-                print(f"[CONFIG] ❌ Basic LocationComboBox import failed: {e2}")
-                # Final fallback if neither available
-                print("[CONFIG] ❌ FINAL FALLBACK: LocationComboBox = None")
-                return None
-
-    def _create_location_widget(self, provider_type: str, default_region: str = "us-central1"):
-        """
-        Create location widget (either LocationComboBox or QLineEdit fallback)
+        # Connect signals to presenter
+        self._connect_signals()
         
-        Args:
-            provider_type: Provider type (e.g., "vertex_ai", "direct_vertex_ai")
-            default_region: Default region to set
-            
-        Returns:
-            Tuple of (widget, is_combo_box: bool)
-        """
-        LocationComboBox = self._get_location_combo_box_class()
+        # Load configuration via presenter
+        self.presenter.load_configuration()
         
-        print(f"[CONFIG] Creating location widget for {provider_type}. LocationComboBox available: {LocationComboBox is not None}")
-        
-        if LocationComboBox:
-            print(f"[CONFIG] ✅ Creating LocationComboBox for {provider_type}")
-            try:
-                combo = LocationComboBox(provider_type)
-                combo.set_region_code(default_region)
-                print(f"[CONFIG] ✅ SUCCESS: LocationComboBox created: {type(combo)}")
-                return combo, True
-            except Exception as e:
-                print(f"[CONFIG] ❌ ERROR creating LocationComboBox: {e}")
-                # Emergency fallback to QLineEdit
-                line_edit = QLineEdit()
-                line_edit.setText(default_region)
-                print("[CONFIG] ⚠️ Emergency fallback to QLineEdit")
-                return line_edit, False
-        else:
-            print(f"[CONFIG] ❌ LocationComboBox is None, using QLineEdit fallback for {provider_type}")
-            # Fallback to QLineEdit if LocationComboBox not available
-            line_edit = QLineEdit()
-            line_edit.setText(default_region)
-            return line_edit, False
+        self.logger.info("ConfigWidget initialized successfully")
 
     def _setup_ui(self):
-        """Create the configuration UI"""
+        """Create the configuration UI - ONLY Qt setup, no business logic"""
         layout = QVBoxLayout()
         self.setLayout(layout)
 
         # Create tab widget for different sections
-        tabs = QTabWidget()
-        layout.addWidget(tabs)
+        self.tabs = QTabWidget()
+        layout.addWidget(self.tabs)
 
-        # API Configuration Tab - REDESIGNED
-        api_tab = self._create_api_tab()
-        tabs.addTab(api_tab, "AI Provider")
-
-        # Other tabs (keeping existing)
-        search_tab = self._create_search_tab()
-        tabs.addTab(search_tab, "Search")
-
-        indexing_tab = self._create_indexing_tab()
-        tabs.addTab(indexing_tab, "Indexing")
-
-        performance_tab = self._create_performance_tab()
-        tabs.addTab(performance_tab, "Performance")
-
-        ui_tab = self._create_ui_tab()
-        tabs.addTab(ui_tab, "Interface")
+        # Create tabs (UI setup only)
+        self._create_api_tab()
+        self._create_search_tab()
+        self._create_indexing_tab()
+        self._create_performance_tab()
+        self._create_ui_tab()
 
     def _create_api_tab(self):
-        """Create REDESIGNED API configuration tab with provider-specific sections"""
+        """Create API configuration tab - UI setup only"""
         widget = QWidget()
         layout = QVBoxLayout()
         widget.setLayout(layout)
@@ -221,24 +107,13 @@ class ConfigWidget(QWidget):
 
         self.provider_combo = QComboBox()
         self.provider_combo.addItems(["mock", "openai", "azure_openai", "vertex_ai", "direct_vertex_ai", "cohere", "local"])
-        self.provider_combo.setToolTip(
-            "Choose the AI service that will analyze your text during indexing.\n"
-            "Mock = Free testing mode (no real AI)\n"
-            "OpenAI = GPT embeddings (requires API key)\n"
-            "Azure OpenAI = Microsoft Azure (requires deployment)\n"
-            "Vertex AI = Google Cloud via LiteLLM (limited models)\n"
-            "Direct Vertex AI = Google Cloud direct (gemini-embedding-001 support)\n"
-            "Cohere = Cohere AI (requires API key)\n"
-            "Local = Ollama (coming soon)"
-        )
-        self.provider_combo.currentTextChanged.connect(self._on_provider_changed)
+        self.provider_combo.setToolTip("Choose the AI service that will analyze your text during indexing.")
         provider_layout.addRow("Provider:", self.provider_combo)
 
-        # SINGLE model selection (no more dual inputs!)
+        # Model selection
         self.model_combo = QComboBox()
         self.model_combo.setToolTip("Select the specific model to use with this provider")
-        self.model_combo.setEditable(True)  # Allow custom entry and search
-        self.model_combo.currentTextChanged.connect(self._on_model_changed)
+        self.model_combo.setEditable(True)
         provider_layout.addRow("Model:", self.model_combo)
 
         # Model info display
@@ -253,9 +128,8 @@ class ConfigWidget(QWidget):
         provider_layout.addRow("API Key:", self.api_key_edit)
 
         # Test connection button
-        test_btn = QPushButton("Test Connection")
-        test_btn.clicked.connect(self._test_connection)
-        provider_layout.addRow("", test_btn)
+        self.test_btn = QPushButton("Test Connection")
+        provider_layout.addRow("", self.test_btn)
 
         layout.addWidget(provider_group)
         
@@ -263,10 +137,10 @@ class ConfigWidget(QWidget):
         self._create_provider_sections(layout)
         
         layout.addStretch()
-        return widget
+        self.tabs.addTab(widget, "AI Provider")
     
     def _create_provider_sections(self, layout):
-        """Create provider-specific configuration sections"""
+        """Create provider-specific configuration sections - UI setup only"""
         
         # OpenAI-specific settings
         self.openai_group = QGroupBox("OpenAI Configuration")
@@ -295,18 +169,14 @@ class ConfigWidget(QWidget):
         self.vertex_project_edit.setPlaceholderText("your-gcp-project-id")
         vertex_layout.addRow("Project ID*:", self.vertex_project_edit)
         
-        # Create location widget using lazy loading to avoid circular imports
-        location_widget, is_combo = self._create_location_widget("vertex_ai", "us-central1")
-        if is_combo:
-            self.vertex_location_combo = location_widget
-        else:
-            self.vertex_location_edit = location_widget
-        vertex_layout.addRow("Location:", location_widget)
+        self.vertex_location_edit = QLineEdit()
+        self.vertex_location_edit.setText("us-central1")
+        vertex_layout.addRow("Location:", self.vertex_location_edit)
         
         layout.addWidget(self.vertex_group)
         self.vertex_group.setVisible(False)
         
-        # Direct Vertex AI-specific settings (for gemini-embedding-001)
+        # Direct Vertex AI-specific settings
         self.direct_vertex_group = QGroupBox("Direct Vertex AI Configuration")
         direct_vertex_layout = QFormLayout()
         self.direct_vertex_group.setLayout(direct_vertex_layout)
@@ -320,23 +190,15 @@ class ConfigWidget(QWidget):
         self.direct_vertex_project_edit.setPlaceholderText("your-gcp-project-id")
         direct_vertex_layout.addRow("Project ID*:", self.direct_vertex_project_edit)
         
-        # Create location widget using lazy loading to avoid circular imports
-        location_widget, is_combo = self._create_location_widget("direct_vertex_ai", "us-central1")
-        if is_combo:
-            self.direct_vertex_location_combo = location_widget
-        else:
-            self.direct_vertex_location_edit = location_widget
-        direct_vertex_layout.addRow("Location:", location_widget)
+        self.direct_vertex_location_edit = QLineEdit()
+        self.direct_vertex_location_edit.setText("us-central1")
+        direct_vertex_layout.addRow("Location:", self.direct_vertex_location_edit)
         
-        # Custom dimensions for gemini-embedding-001
         self.direct_vertex_dimensions_spin = QSpinBox()
         self.direct_vertex_dimensions_spin.setRange(1, 3072)
         self.direct_vertex_dimensions_spin.setValue(768)
         self.direct_vertex_dimensions_spin.setSingleStep(256)
-        self.direct_vertex_dimensions_spin.setToolTip(
-            "Custom embedding dimensions (1-3072). Higher = more detail, larger storage.\n"
-            "Recommended: 768 (balanced), 1536 (detailed), 3072 (maximum detail)"
-        )
+        self.direct_vertex_dimensions_spin.setToolTip("Custom embedding dimensions (1-3072).")
         direct_vertex_layout.addRow("Custom Dimensions:", self.direct_vertex_dimensions_spin)
         
         layout.addWidget(self.direct_vertex_group)
@@ -387,113 +249,8 @@ class ConfigWidget(QWidget):
         layout.addWidget(self.azure_group)
         self.azure_group.setVisible(False)
 
-    def _on_provider_changed(self, provider):
-        """Handle provider selection change - show relevant section"""
-        # Show/hide provider-specific settings
-        self.openai_group.setVisible(provider == "openai")
-        self.vertex_group.setVisible(provider == "vertex_ai")
-        self.direct_vertex_group.setVisible(provider == "direct_vertex_ai")
-        self.cohere_group.setVisible(provider == "cohere")
-        self.azure_group.setVisible(provider == "azure_openai")
-        
-        # Update model dropdown with provider-specific models
-        self._update_models_for_provider(provider)
-        
-        # Update model field placeholder
-        model_placeholders = {
-            "openai": "text-embedding-3-small",
-            "azure_openai": "Use deployment name instead",
-            "cohere": "embed-english-v3.0",
-            "vertex_ai": "text-embedding-004",
-            "direct_vertex_ai": "gemini-embedding-001",
-            "mock": "mock-embedding",
-            "local": "mxbai-embed-large"
-        }
-        
-        if hasattr(self.model_combo, 'lineEdit') and self.model_combo.lineEdit():
-            self.model_combo.lineEdit().setPlaceholderText(model_placeholders.get(provider, ""))
-        
-        # Disable model field for Azure (uses deployment name)
-        self.model_combo.setEnabled(provider != "azure_openai")
-    
-    def _update_models_for_provider(self, provider):
-        """Update model dropdown with provider-specific options"""
-        self.model_combo.clear()
-        
-        # Improved model lists with more options and better organization
-        if provider == "openai":
-            models = [
-                "text-embedding-3-large ⭐ (3072 dims, best quality)",
-                "text-embedding-3-small ⭐ (1536 dims, good balance)", 
-                "text-embedding-ada-002 (1536 dims, legacy)"
-            ]
-        elif provider == "vertex_ai":
-            models = [
-                "text-embedding-004 ⭐ (768 dims, latest)",
-                "text-embedding-005 (768 dims, experimental)",
-                "textembedding-gecko@003 (768 dims, stable)",
-                "textembedding-gecko-multilingual@001 (768 dims, multilingual)"
-            ]
-        elif provider == "direct_vertex_ai":
-            models = [
-                "gemini-embedding-001 🔥 (custom dims 1-3072, state-of-the-art)",
-                "text-embedding-004 (768 dims, stable backup)"
-            ]
-        elif provider == "cohere":
-            models = [
-                "embed-english-v3.0 ⭐ (1024 dims, latest)",
-                "embed-multilingual-v3.0 (1024 dims, multilingual)",
-                "embed-english-light-v3.0 (1024 dims, faster)"
-            ]
-        elif provider == "azure_openai":
-            models = ["Use deployment name in field above"]
-        else:  # mock/local
-            models = ["mock-embedding (for testing)"]
-        
-        self.model_combo.addItems(models)
-        
-        if models and models[0] != "Use deployment name in field above":
-            # Set first recommended model as default
-            self.model_combo.setCurrentIndex(0)
-            self._on_model_changed(models[0])
-    
-    def _on_model_changed(self, model_name):
-        """Handle model selection change and show helpful info"""
-        if not model_name or "Use deployment name" in model_name:
-            self.model_info_label.setText("")
-            return
-        
-        # Extract the actual model name (remove metadata)
-        clean_name = model_name.split(" ")[0]
-        
-        # Show helpful information based on model
-        info_parts = []
-        
-        if "⭐" in model_name:
-            info_parts.append("⭐ Recommended for academic texts")
-        
-        if "3072 dims" in model_name:
-            info_parts.append("📊 High dimensional embeddings for complex concepts")
-        elif "1536 dims" in model_name:
-            info_parts.append("📊 Standard dimensional embeddings (good quality)")
-        elif "768 dims" in model_name:
-            info_parts.append("📊 Compact embeddings (efficient)")
-        
-        if "latest" in model_name:
-            info_parts.append("🆕 Latest model version")
-        elif "legacy" in model_name:
-            info_parts.append("⚠️ Legacy model (consider upgrading)")
-        
-        if "multilingual" in model_name:
-            info_parts.append("🌍 Supports multiple languages")
-        
-        if info_parts:
-            self.model_info_label.setText(" | ".join(info_parts))
-        else:
-            self.model_info_label.setText("Standard embedding model")
-
     def _create_search_tab(self):
-        """Create search options tab (keeping existing logic)"""
+        """Create search options tab - UI setup only"""
         widget = QWidget()
         layout = QVBoxLayout()
         widget.setLayout(layout)
@@ -525,15 +282,15 @@ class ConfigWidget(QWidget):
 
         layout.addWidget(search_group)
         layout.addStretch()
-        return widget
+        self.tabs.addTab(widget, "Search")
 
     def _create_indexing_tab(self):
-        """Create indexing tab (simplified, no dual model selection)"""
+        """Create indexing tab - UI setup only"""
         widget = QWidget()
         layout = QVBoxLayout()
         widget.setLayout(layout)
 
-        # Embedding dimensions (auto-populated from model selection)
+        # Embedding dimensions
         embedding_group = QGroupBox("Embedding Configuration")
         embedding_layout = QFormLayout()
         embedding_group.setLayout(embedding_layout)
@@ -564,10 +321,10 @@ class ConfigWidget(QWidget):
 
         layout.addWidget(process_group)
         layout.addStretch()
-        return widget
+        self.tabs.addTab(widget, "Indexing")
 
     def _create_performance_tab(self):
-        """Create performance tab (keeping existing)"""
+        """Create performance tab - UI setup only"""
         widget = QWidget()
         layout = QVBoxLayout()
         widget.setLayout(layout)
@@ -587,10 +344,10 @@ class ConfigWidget(QWidget):
 
         layout.addWidget(cache_group)
         layout.addStretch()
-        return widget
+        self.tabs.addTab(widget, "Performance")
 
     def _create_ui_tab(self):
-        """Create UI options tab (keeping existing)"""
+        """Create UI options tab - UI setup only"""
         widget = QWidget()
         layout = QVBoxLayout()
         widget.setLayout(layout)
@@ -619,206 +376,243 @@ class ConfigWidget(QWidget):
 
         layout.addWidget(window_group)
         layout.addStretch()
-        return widget
+        self.tabs.addTab(widget, "Interface")
 
-    def _load_settings(self):
-        """Load settings from config"""
-        self.provider_combo.setCurrentText(self.config.get("embedding_provider"))
-        self.model_combo.setCurrentText(self.config.get("embedding_model"))
+    def _connect_signals(self):
+        """Connect Qt signals to presenter methods - NO business logic here"""
+        self.provider_combo.currentTextChanged.connect(self._on_provider_changed)
+        self.model_combo.currentTextChanged.connect(self._on_model_changed)
+        self.test_btn.clicked.connect(self._test_connection)
 
-        provider = self.provider_combo.currentText()
-        api_key = self.config.get(f"api_keys.{provider}", "")
-        self.api_key_edit.setText(api_key)
+    def _on_provider_changed(self, provider):
+        """Signal handler - delegates to presenter"""
+        self.presenter.on_provider_changed(provider)
 
-        self.result_limit_spin.setValue(self.config.get("search_options.default_limit"))
-        self.threshold_slider.setValue(
-            int(self.config.get("search_options.similarity_threshold") * 100)
-        )
-        self.scope_combo.setCurrentText(self.config.get("search_options.scope"))
-
-        self.cache_enabled_check.setChecked(self.config.get("performance.cache_enabled"))
-        self.cache_size_spin.setValue(self.config.get("performance.cache_size_mb"))
-
-        self.floating_check.setChecked(self.config.get("ui_options.floating_window"))
-        self.remember_pos_check.setChecked(self.config.get("ui_options.remember_position"))
-        self.opacity_slider.setValue(int(self.config.get("ui_options.window_opacity") * 100))
-
-        # Load Direct Vertex AI settings
-        self.direct_vertex_project_edit.setText(self.config.get("vertex_project_id", ""))
-        
-        # Handle location setting with LocationComboBox or fallback
-        vertex_location = self.config.get("vertex_location", "us-central1")
-        if hasattr(self, 'direct_vertex_location_combo'):
-            self.direct_vertex_location_combo.set_region_code(vertex_location)
-        elif hasattr(self, 'direct_vertex_location_edit'):
-            self.direct_vertex_location_edit.setText(vertex_location)
-            
-        self.direct_vertex_dimensions_spin.setValue(self.config.get("embedding_dimensions", 768))
-
-        # Trigger provider change to show correct section
-        self._on_provider_changed(self.provider_combo.currentText())
-
-    def save_settings(self):
-        """Save settings to config"""
-        self.config.set("embedding_provider", self.provider_combo.currentText())
-        
-        # Get clean model name (remove metadata like "⭐ (3072 dims, best quality)")
-        model_text = self.model_combo.currentText()
-        clean_model = model_text.split(" ")[0] if model_text else ""
-        self.config.set("embedding_model", clean_model)
-
-        provider = self.provider_combo.currentText()
-        self.config.set(f"api_keys.{provider}", self.api_key_edit.text())
-
-        self.config.set("search_options.default_limit", self.result_limit_spin.value())
-        self.config.set(
-            "search_options.similarity_threshold", self.threshold_slider.value() / 100.0
-        )
-        self.config.set("search_options.scope", self.scope_combo.currentText())
-
-        self.config.set("performance.cache_enabled", self.cache_enabled_check.isChecked())
-        self.config.set("performance.cache_size_mb", self.cache_size_spin.value())
-
-        self.config.set("ui_options.floating_window", self.floating_check.isChecked())
-        self.config.set("ui_options.remember_position", self.remember_pos_check.isChecked())
-        self.config.set("ui_options.window_opacity", self.opacity_slider.value() / 100.0)
-
-        # Save Direct Vertex AI settings
-        if self.provider_combo.currentText() == "direct_vertex_ai":
-            self.config.set("vertex_project_id", self.direct_vertex_project_edit.text().strip())
-            
-            # Handle location setting with LocationComboBox or fallback
-            if hasattr(self, 'direct_vertex_location_combo'):
-                location = self.direct_vertex_location_combo.get_region_code()
-            elif hasattr(self, 'direct_vertex_location_edit'):
-                location = self.direct_vertex_location_edit.text().strip()
-            else:
-                location = "us-central1"  # Default fallback
-            self.config.set("vertex_location", location)
-            
-            # For direct_vertex_ai, use the custom dimensions spinner
-            self.config.set("embedding_dimensions", self.direct_vertex_dimensions_spin.value())
-        elif self.provider_combo.currentText() == "vertex_ai":
-            # Handle regular Vertex AI settings
-            if hasattr(self, 'vertex_location_combo'):
-                location = self.vertex_location_combo.get_region_code()
-            elif hasattr(self, 'vertex_location_edit'):
-                location = self.vertex_location_edit.text().strip()
-            else:
-                location = "us-central1"  # Default fallback
-            self.config.set("vertex_location", location)
-        else:
-            # For other providers, use the standard dimensions spinner
-            self.config.set("embedding_dimensions", self.dimensions_spin.value())
-
-        # JSONConfig auto-saves when values are modified
+    def _on_model_changed(self, model):
+        """Signal handler - delegates to presenter"""
+        self.presenter.on_model_changed(model)
 
     def _test_connection(self):
-        """Test API connection"""
-        import threading
-        import time
+        """Test connection - delegates to presenter"""
+        provider = self.get_provider()
+        api_key = self.get_api_key()
+        model = self.get_model()
         
-        provider = self.provider_combo.currentText()
-        
-        if provider == "mock":
-            QMessageBox.information(self, "Test Connection", "✅ Mock provider - no real connection needed")
-            return
-        
-        # Validate required fields
-        api_key = self.api_key_edit.text().strip()
-        model = self.model_combo.currentText().split(" ")[0] if self.model_combo.currentText() else ""
-        
-        # Provider-specific validation
-        validation_result = self._validate_provider_config(provider, api_key, model)
-        if not validation_result['valid']:
-            QMessageBox.warning(self, "Test Connection", f"❌ {validation_result['error']}")
-            return
-        
-        # Show progress dialog
-        progress = QProgressDialog("Testing connection...", "Cancel", 0, 0, self)
-        progress.setWindowModality(Qt.WindowModal)
-        progress.setAutoClose(True)
-        progress.setAutoReset(True)
-        progress.show()
-        QApplication.processEvents()
-        
-        # Simulate connection test (will be replaced with real test)
-        def test_worker():
-            time.sleep(2)  # Simulate API call
-            return True
-        
-        try:
-            # Run test in background
-            success = test_worker()
-            progress.close()
-            
-            if success:
-                QMessageBox.information(self, "Test Connection", 
-                                      f"✅ Connection successful!\n"
-                                      f"Provider: {provider}\n"
-                                      f"Model: {model}\n"
-                                      f"Configuration appears valid.")
-            else:
-                QMessageBox.warning(self, "Test Connection", 
-                                  f"❌ Connection failed\n"
-                                  f"Please check your configuration.")
-                
-        except Exception as e:
-            progress.close()
-            QMessageBox.critical(self, "Test Connection", 
-                               f"❌ Connection test failed:\n{str(e)}")
-    
-    def _validate_provider_config(self, provider, api_key, model):
-        """Validate provider-specific configuration"""
-        if provider == "openai":
-            if not api_key:
-                return {'valid': False, 'error': 'OpenAI API key is required'}
-            if not api_key.startswith('sk-'):
-                return {'valid': False, 'error': 'OpenAI API key should start with "sk-"'}
-            if not model:
-                return {'valid': False, 'error': 'Model selection is required'}
-                
-        elif provider == "vertex_ai":
-            if hasattr(self, 'vertex_project_edit'):
-                project = self.vertex_project_edit.text().strip()
-                if not project:
-                    return {'valid': False, 'error': 'Vertex AI Project ID is required'}
-            if not model:
-                return {'valid': False, 'error': 'Model selection is required'}
-                
-        elif provider == "direct_vertex_ai":
-            if hasattr(self, 'direct_vertex_project_edit'):
-                project = self.direct_vertex_project_edit.text().strip()
-                if not project:
-                    return {'valid': False, 'error': 'Direct Vertex AI Project ID is required'}
-            if hasattr(self, 'direct_vertex_location_edit'):
-                location = self.direct_vertex_location_edit.text().strip()
-                if not location:
-                    return {'valid': False, 'error': 'Direct Vertex AI Location is required'}
-            if not model:
-                return {'valid': False, 'error': 'Model selection is required'}
-            # Validate dimensions
-            if hasattr(self, 'direct_vertex_dimensions_spin'):
-                dims = self.direct_vertex_dimensions_spin.value()
-                if dims < 1 or dims > 3072:
-                    return {'valid': False, 'error': 'Dimensions must be between 1 and 3072 for gemini-embedding-001'}
-                
-        elif provider == "cohere":
-            if not api_key:
-                return {'valid': False, 'error': 'Cohere API key is required'}
-            if not model:
-                return {'valid': False, 'error': 'Model selection is required'}
-                
+        # Get provider-specific values
+        kwargs = {}
+        if provider in ["vertex_ai", "direct_vertex_ai"]:
+            kwargs['project_id'] = self.get_vertex_project_id()
+            kwargs['location'] = self.get_vertex_location()
+            if provider == "direct_vertex_ai":
+                kwargs['dimensions'] = self.get_vertex_dimensions()
         elif provider == "azure_openai":
-            if not api_key:
-                return {'valid': False, 'error': 'Azure OpenAI API key is required'}
-            if hasattr(self, 'azure_deployment_edit'):
-                deployment = self.azure_deployment_edit.text().strip()
-                if not deployment:
-                    return {'valid': False, 'error': 'Azure deployment name is required'}
-            if hasattr(self, 'azure_api_base_edit'):
-                api_base = self.azure_api_base_edit.text().strip()
-                if not api_base:
-                    return {'valid': False, 'error': 'Azure API base URL is required'}
+            kwargs['deployment'] = self.get_azure_deployment()
+            kwargs['api_base'] = self.get_azure_api_base()
+        elif provider == "cohere":
+            kwargs['input_type'] = self.get_cohere_input_type()
         
-        return {'valid': True, 'error': None}
+        self.presenter.test_connection(provider, api_key, model, **kwargs)
+
+    # SIMPLE SETTER METHODS - MVP Pattern (called by presenter)
+    
+    def set_provider(self, provider):
+        """Simple setter - just update UI"""
+        self.provider_combo.setCurrentText(provider)
+    
+    def set_model(self, model):
+        """Simple setter - just update UI"""
+        self.model_combo.setCurrentText(model)
+    
+    def set_api_key(self, api_key):
+        """Simple setter - just update UI"""
+        self.api_key_edit.setText(api_key)
+    
+    def set_model_info(self, info_text):
+        """Simple setter - just update UI"""
+        self.model_info_label.setText(info_text)
+    
+    def show_provider_section(self, provider):
+        """Simple setter - show/hide provider sections"""
+        self.openai_group.setVisible(provider == "openai")
+        self.vertex_group.setVisible(provider == "vertex_ai")
+        self.direct_vertex_group.setVisible(provider == "direct_vertex_ai")
+        self.cohere_group.setVisible(provider == "cohere")
+        self.azure_group.setVisible(provider == "azure_openai")
+    
+    def update_model_list(self, models):
+        """Simple setter - update model dropdown"""
+        self.model_combo.clear()
+        self.model_combo.addItems(models)
+        if models and models[0] != "Use deployment name in field above":
+            self.model_combo.setCurrentIndex(0)
+    
+    def set_model_placeholder(self, placeholder):
+        """Simple setter - update model placeholder"""
+        if self.model_combo.lineEdit():
+            self.model_combo.lineEdit().setPlaceholderText(placeholder)
+    
+    def set_model_enabled(self, enabled):
+        """Simple setter - enable/disable model field"""
+        self.model_combo.setEnabled(enabled)
+    
+    def show_connection_progress(self, show):
+        """Simple setter - show/hide connection progress"""
+        if show:
+            self.progress = QProgressDialog("Testing connection...", "Cancel", 0, 0, self)
+            self.progress.setWindowModality(Qt.WindowModal)
+            self.progress.show()
+        else:
+            if hasattr(self, 'progress'):
+                self.progress.close()
+                delattr(self, 'progress')
+    
+    def show_connection_result(self, success, message):
+        """Simple setter - show connection result"""
+        if success:
+            QMessageBox.information(self, "Test Connection", message)
+        else:
+            QMessageBox.warning(self, "Test Connection", message)
+    
+    def set_result_limit(self, limit):
+        """Simple setter - just update UI"""
+        self.result_limit_spin.setValue(limit)
+    
+    def set_similarity_threshold(self, threshold):
+        """Simple setter - just update UI"""
+        self.threshold_slider.setValue(threshold)
+    
+    def set_search_scope(self, scope):
+        """Simple setter - just update UI"""
+        self.scope_combo.setCurrentText(scope)
+    
+    def set_cache_enabled(self, enabled):
+        """Simple setter - just update UI"""
+        self.cache_enabled_check.setChecked(enabled)
+    
+    def set_cache_size(self, size):
+        """Simple setter - just update UI"""
+        self.cache_size_spin.setValue(size)
+    
+    def set_floating_window(self, floating):
+        """Simple setter - just update UI"""
+        self.floating_check.setChecked(floating)
+    
+    def set_remember_position(self, remember):
+        """Simple setter - just update UI"""
+        self.remember_pos_check.setChecked(remember)
+    
+    def set_window_opacity(self, opacity):
+        """Simple setter - just update UI"""
+        self.opacity_slider.setValue(opacity)
+    
+    def set_vertex_project_id(self, project_id):
+        """Simple setter - just update UI"""
+        self.vertex_project_edit.setText(project_id)
+        self.direct_vertex_project_edit.setText(project_id)
+    
+    def set_vertex_location(self, location):
+        """Simple setter - just update UI"""
+        self.vertex_location_edit.setText(location)
+        self.direct_vertex_location_edit.setText(location)
+    
+    def set_vertex_dimensions(self, dimensions):
+        """Simple setter - just update UI"""
+        self.direct_vertex_dimensions_spin.setValue(dimensions)
+    
+    def set_azure_deployment(self, deployment):
+        """Simple setter - just update UI"""
+        self.azure_deployment_edit.setText(deployment)
+    
+    def set_azure_api_base(self, api_base):
+        """Simple setter - just update UI"""
+        self.azure_api_base_edit.setText(api_base)
+    
+    def set_azure_api_version(self, api_version):
+        """Simple setter - just update UI"""
+        self.azure_api_version_edit.setText(api_version)
+    
+    def set_cohere_input_type(self, input_type):
+        """Simple setter - just update UI"""
+        self.cohere_input_type_combo.setCurrentText(input_type)
+
+    # SIMPLE GETTER METHODS - MVP Pattern (called by presenter)
+    
+    def get_provider(self):
+        """Simple getter - just read UI"""
+        return self.provider_combo.currentText()
+    
+    def get_model(self):
+        """Simple getter - just read UI"""
+        return self.model_combo.currentText()
+    
+    def get_api_key(self):
+        """Simple getter - just read UI"""
+        return self.api_key_edit.text()
+    
+    def get_result_limit(self):
+        """Simple getter - just read UI"""
+        return self.result_limit_spin.value()
+    
+    def get_similarity_threshold(self):
+        """Simple getter - just read UI"""
+        return self.threshold_slider.value()
+    
+    def get_search_scope(self):
+        """Simple getter - just read UI"""
+        return self.scope_combo.currentText()
+    
+    def get_cache_enabled(self):
+        """Simple getter - just read UI"""
+        return self.cache_enabled_check.isChecked()
+    
+    def get_cache_size(self):
+        """Simple getter - just read UI"""
+        return self.cache_size_spin.value()
+    
+    def get_floating_window(self):
+        """Simple getter - just read UI"""
+        return self.floating_check.isChecked()
+    
+    def get_remember_position(self):
+        """Simple getter - just read UI"""
+        return self.remember_pos_check.isChecked()
+    
+    def get_window_opacity(self):
+        """Simple getter - just read UI"""
+        return self.opacity_slider.value()
+    
+    def get_embedding_dimensions(self):
+        """Simple getter - just read UI"""
+        return self.dimensions_spin.value()
+    
+    def get_vertex_project_id(self):
+        """Simple getter - just read UI"""
+        return self.direct_vertex_project_edit.text().strip()
+    
+    def get_vertex_location(self):
+        """Simple getter - just read UI"""
+        return self.direct_vertex_location_edit.text().strip()
+    
+    def get_vertex_dimensions(self):
+        """Simple getter - just read UI"""
+        return self.direct_vertex_dimensions_spin.value()
+    
+    def get_azure_deployment(self):
+        """Simple getter - just read UI"""
+        return self.azure_deployment_edit.text().strip()
+    
+    def get_azure_api_base(self):
+        """Simple getter - just read UI"""
+        return self.azure_api_base_edit.text().strip()
+    
+    def get_azure_api_version(self):
+        """Simple getter - just read UI"""
+        return self.azure_api_version_edit.text().strip()
+    
+    def get_cohere_input_type(self):
+        """Simple getter - just read UI"""
+        return self.cohere_input_type_combo.currentText()
+
+    def save_settings(self):
+        """Save settings - delegates to presenter"""
+        self.presenter.save_configuration()

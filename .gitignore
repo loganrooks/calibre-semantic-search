@@ -87,3 +87,4 @@ analysis_cache.json
 # Concatenator tool and dependencies  
 .concatenator_deps/
 tools/concatenator/
+.claude_commands/

@@ -13,7 +13,7 @@ import zipfile
 import os
 import asyncio
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, AsyncMock, patch
 
 # Direct import to avoid Calibre dependencies
 import sys
@@ -23,8 +23,8 @@ sys.path.insert(0, str(plugin_path))
 from data.repositories import CalibreRepository
 from core.indexing_service import IndexingService
 from core.text_processor import TextProcessor
-from core.embedding_service import MockEmbeddingService
-from data.database import EmbeddingDatabase
+from core.embedding_service import MockProvider
+from data.database import SemanticSearchDB
 
 
 class TestEPUBExtractionFix:
@@ -146,15 +146,9 @@ class TestEPUBExtractionFix:
             with tempfile.TemporaryDirectory() as tmpdir:
                 db_path = os.path.join(tmpdir, 'test_embeddings.db')
                 
-                # Create repositories
-                embedding_db = EmbeddingDatabase(db_path)
-                embedding_repo = Mock()
-                embedding_repo.db = embedding_db
-                embedding_repo.store_embedding = embedding_db.store_embedding
-                embedding_repo.update_indexing_status = Mock()
-                embedding_repo.delete_book_embeddings = Mock()
-                embedding_repo.get_indexing_status = Mock(return_value=[])
-                embedding_repo.get_statistics = Mock(return_value={'indexed_books': 0})
+                # Create repositories - Use real embedding repository
+                from data.repositories import EmbeddingRepository
+                embedding_repo = EmbeddingRepository(db_path)
                 
                 # Mock Calibre repository
                 mock_calibre_db = Mock()
@@ -178,7 +172,7 @@ class TestEPUBExtractionFix:
                 
                 # Create services
                 text_processor = TextProcessor()
-                embedding_service = MockEmbeddingService()
+                embedding_service = MockProvider()
                 
                 indexing_service = IndexingService(
                     embedding_repo=embedding_repo,
@@ -188,14 +182,15 @@ class TestEPUBExtractionFix:
                 )
                 
                 # Index the book
-                result = await indexing_service.index_book(1)
+                result = await indexing_service.index_books([1])
                 
                 # Verify indexing worked
-                assert result['status'] == 'success'
-                assert result['chunk_count'] > 0
+                assert result['successful_books'] == 1
+                assert result['failed_books'] == 0
+                assert result['total_chunks'] > 0
                 
                 # Check what was stored
-                chunks = embedding_db._conn.execute(
+                chunks = embedding_repo.db._conn.execute(
                     "SELECT chunk_text FROM chunks WHERE book_id = 1"
                 ).fetchall()
                 

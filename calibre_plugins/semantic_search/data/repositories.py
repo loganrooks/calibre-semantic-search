@@ -99,8 +99,37 @@ class EmbeddingRepository(IEmbeddingRepository):
         if "book_id" not in chunk.metadata:
             chunk.metadata["book_id"] = book_id
 
-        chunk_id = self.db.store_embedding(book_id, chunk, embedding)
-        logger.debug(f"Stored embedding for chunk {chunk_id} of book {book_id}")
+        # Find or create an appropriate index for this book
+        # Use default parameters that match the embedding service
+        dimensions = len(embedding)
+        provider = "default"  # This should ideally come from the embedding service
+        model_name = "default"
+        
+        # Check if an index already exists for this book with these parameters
+        existing_indexes = self.get_indexes_for_book(book_id)
+        index_id = None
+        
+        for idx in existing_indexes:
+            if (idx['provider'] == provider and 
+                idx['model_name'] == model_name and 
+                idx['dimensions'] == dimensions):
+                index_id = idx['index_id']
+                break
+        
+        # Create new index if none exists
+        if index_id is None:
+            index_id = self.create_index(
+                book_id=book_id,
+                provider=provider,
+                model_name=model_name,
+                dimensions=dimensions,
+                chunk_size=512,  # Default chunk size
+                chunk_overlap=0
+            )
+        
+        # Store using the index-aware method
+        chunk_id = self.store_embedding_for_index(index_id, chunk, embedding)
+        logger.debug(f"Stored embedding for chunk {chunk_id} of book {book_id} in index {index_id}")
 
         return chunk_id
 

@@ -543,8 +543,28 @@ def create_embedding_service(config: Dict[str, Any]) -> EmbeddingService:
     provider_name = config.get("embedding_provider", "mock")
     api_keys = config.get("api_keys", {})
 
+    # Handle direct Vertex AI provider (for gemini-embedding-001)
+    if provider_name == "direct_vertex_ai":
+        try:
+            from .embedding_providers.direct_vertex_ai import DirectVertexAIProvider
+            
+            provider_config = {
+                "model": config.get("embedding_model", "gemini-embedding-001"),
+                "project_id": config.get("vertex_project_id") or api_keys.get("vertex_ai_project"),
+                "location": config.get("vertex_location", "us-central1"),
+                "dimensions": config.get("embedding_dimensions", 768),
+                "service_account_key": config.get("vertex_service_account_key"),
+            }
+            
+            provider = DirectVertexAIProvider(provider_config)
+            providers.append(provider)
+            logger.info(f"Created DirectVertexAIProvider: {provider}")
+            
+        except Exception as e:
+            logger.error(f"Failed to create DirectVertexAI provider: {e}")
+
     # Only create real providers if litellm is available
-    if litellm_available:
+    elif litellm_available:
         # Create primary provider
         if provider_name == "vertex_ai":
             try:

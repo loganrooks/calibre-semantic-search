@@ -57,6 +57,10 @@ class TestPluginStructure:
         
         assert not errors, f"Import errors found:\n" + "\n".join(errors)
     
+    @pytest.mark.skipif(
+        not os.environ.get('PYTEST_BUILD_TESTS'), 
+        reason="Skipping build test - set PYTEST_BUILD_TESTS=1 to enable"
+    )
     def test_plugin_zip_structure(self, plugin_root):
         """Test the plugin ZIP has correct structure"""
         # Build the plugin

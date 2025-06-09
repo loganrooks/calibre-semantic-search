@@ -11,7 +11,8 @@ from typing import List, Optional, Callable
 from PyQt5.Qt import (
     QComboBox, QCompleter, QStringListModel, QTimer, QMovie, QLabel,
     QHBoxLayout, QWidget, QProgressBar, QToolButton, QMenu, QAction,
-    Qt, QSize, QPixmap, QIcon, QPainter, QColor, QBrush, QPen, QApplication
+    Qt, QSize, QPixmap, QIcon, QPainter, QColor, QBrush, QPen, QApplication,
+    QEvent, QFocusEvent
 )
 
 try:
@@ -98,9 +99,7 @@ class DynamicLocationComboBox(QComboBox):
         super().__init__(parent)
         self.provider_type = provider_type
         self.all_regions: List[CloudRegion] = []
-        self.filtered_regions: List[CloudRegion] = []
         self.is_loading = False
-        self.last_filter_text = ""
         
         # Initialize fetcher
         self.fetcher = LocationDataFetcher() if LocationDataFetcher else None
@@ -114,7 +113,7 @@ class DynamicLocationComboBox(QComboBox):
         self._fetch_regions_async()
     
     def _setup_combo_box(self):
-        """Configure the combo box for optimal filtering experience"""
+        """Configure the combo box for optimal filtering experience using QCompleter"""
         self.setEditable(True)
         self.setInsertPolicy(QComboBox.NoInsert)
         self.setDuplicatesEnabled(False)
@@ -131,9 +130,73 @@ class DynamicLocationComboBox(QComboBox):
         
         if self.lineEdit():
             self.lineEdit().setPlaceholderText(placeholder)
+        
+        # SOLUTION: Use QCompleter for live filtering popup (doesn't steal focus!)
+        self._setup_completer()
             
         # Enhanced interaction patterns for better UX
         self._setup_interaction_patterns()
+    
+    def _setup_completer(self):
+        """Setup QCompleter for live filtering without focus stealing"""
+        # Create completer with custom string list model
+        self.completer = QCompleter(self)
+        self.completer_model = QStringListModel(self)
+        self.completer.setModel(self.completer_model)
+        
+        # Configure completer for optimal UX
+        self.completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self.completer.setFilterMode(Qt.MatchContains)  # Match anywhere in string
+        self.completer.setMaxVisibleItems(15)
+        
+        # CRITICAL: This makes completer show popup without stealing focus!
+        self.completer.setCompletionMode(QCompleter.PopupCompletion)
+        
+        # Connect to line edit
+        if self.lineEdit():
+            self.lineEdit().setCompleter(self.completer)
+        
+        # Handle completion selection
+        self.completer.activated.connect(self._on_completion_selected)
+        
+        # Store mapping of display text to region code for selection
+        self.completion_to_code = {}
+    
+    def _on_completion_selected(self, completion_text: str):
+        """Handle when user selects a completion"""
+        region_code = self.completion_to_code.get(completion_text, completion_text)
+        
+        # Set the region code in the line edit
+        if self.lineEdit():
+            self.lineEdit().setText(region_code)
+            # Trigger any change handlers
+            self.editTextChanged.emit(region_code)
+    
+    def _update_completer_data(self):
+        """Update completer with current region data"""
+        if not hasattr(self, 'completer') or not self.completer:
+            return
+        
+        completion_strings = []
+        self.completion_to_code.clear()
+        
+        # Create completion strings with visual indicators
+        for region in self.all_regions:
+            if region.popular:
+                display_text = f"⭐ {region.code} ({region.name})"
+            else:
+                status_icon = "✅" if region.status == "available" else "⚠️"
+                display_text = f"{status_icon} {region.code} ({region.name})"
+            
+            completion_strings.append(display_text)
+            self.completion_to_code[display_text] = region.code
+            
+            # Also add just the region code for exact matches
+            completion_strings.append(region.code)
+            self.completion_to_code[region.code] = region.code
+        
+        # Update the model
+        self.completer_model.setStringList(completion_strings)
     
     def _setup_loading_indicator(self):
         """Setup loading indicator widget"""
@@ -186,149 +249,34 @@ class DynamicLocationComboBox(QComboBox):
         menu.exec_(self.mapToGlobal(position))
     
     def _setup_interaction_patterns(self):
-        """Setup enhanced interaction patterns for better UX"""
+        """Setup enhanced interaction patterns for better UX with QCompleter"""
         if self.lineEdit():
             # Store original event handlers
             original_double_click = self.lineEdit().mouseDoubleClickEvent
             original_focus_in = self.lineEdit().focusInEvent
             
             def enhanced_double_click(event):
-                """Double-click to show all regions and select text"""
-                # Clear any filter to show all regions
-                if self.lineEdit().text():
-                    self.lineEdit().clear()
-                    self.last_filter_text = ""
-                    self.filtered_regions = self.all_regions.copy()
-                    self._populate_combo_with_regions_smart(self.all_regions, "")
-                
-                # Show dropdown using focus-preserving method
-                if not self.view().isVisible():
-                    self._show_popup_focus_preserving()
-                
+                """Double-click to select text and show completer popup"""
                 # Call original handler to select text
                 original_double_click(event)
+                
+                # Force completer to show all completions
+                if hasattr(self, 'completer') and self.completer:
+                    self.completer.complete()
             
             def enhanced_focus_in(event):
-                """Focus in - optionally show dropdown for easier access"""
+                """Focus in - show completer popup for easier access"""
                 # Call original handler first
                 original_focus_in(event)
                 
-                # If field is empty and user focuses, show dropdown with all regions
-                if not self.lineEdit().text() and not self.view().isVisible():
-                    # Small delay to let focus settle, then show popup preserving focus
-                    QTimer.singleShot(100, self._show_popup_focus_preserving)
+                # Show completer popup when focused (if we have data)
+                if hasattr(self, 'completer') and self.completer and self.all_regions:
+                    self.completer.complete()
             
             # Install enhanced event handlers
             self.lineEdit().mouseDoubleClickEvent = enhanced_double_click
             self.lineEdit().focusInEvent = enhanced_focus_in
     
-    def _show_popup_focus_preserving(self):
-        """
-        Show popup without stealing focus from line edit.
-        
-        This is the critical method that solves the typing interruption issue.
-        """
-        if not self.lineEdit():
-            return
-        
-        # Store current focus widget
-        focused_widget = QApplication.focusWidget()
-        
-        # Show the popup
-        self.showPopup()
-        
-        # CRITICAL: Immediately return focus to line edit using multiple approaches
-        # This ensures user can continue typing without interruption
-        
-        # Approach 1: Immediate focus return
-        self.lineEdit().setFocus(Qt.OtherFocusReason)
-        
-        # Approach 2: Delayed focus return (in case immediate doesn't work)
-        QTimer.singleShot(1, lambda: self.lineEdit().setFocus(Qt.OtherFocusReason))
-        
-        # Approach 3: Restore original focus if it was line edit
-        if focused_widget == self.lineEdit():
-            QTimer.singleShot(5, lambda: focused_widget.setFocus(Qt.OtherFocusReason))
-        
-        # Approach 4: Ensure line edit is active window focus
-        QTimer.singleShot(10, self._ensure_line_edit_focus)
-    
-    def _ensure_line_edit_focus(self):
-        """Ensure line edit maintains focus for continuous typing"""
-        if self.lineEdit() and self.view().isVisible():
-            # Force focus back to line edit if it lost focus
-            if QApplication.focusWidget() != self.lineEdit():
-                self.lineEdit().setFocus(Qt.OtherFocusReason)
-                # Also make sure cursor is at end for natural typing
-                self.lineEdit().setCursorPosition(len(self.lineEdit().text()))
-    
-    def _setup_filtering(self):
-        """Setup real-time filtering as user types"""
-        if self.lineEdit():
-            self.lineEdit().textEdited.connect(self._on_text_edited)
-            self.editTextChanged.connect(self._on_edit_text_changed)
-            
-            # Enhanced key handling for better UX
-            original_key_press = self.lineEdit().keyPressEvent
-            
-            def enhanced_key_press(event):
-                """Enhanced key handling with ESC to close dropdown"""
-                # ESC key closes dropdown and returns focus to line edit
-                if event.key() == Qt.Key_Escape and self.view().isVisible():
-                    self.hidePopup()
-                    self.lineEdit().setFocus(Qt.OtherFocusReason)
-                    event.accept()
-                    return
-                
-                # Call original handler for normal key processing
-                original_key_press(event)
-            
-            self.lineEdit().keyPressEvent = enhanced_key_press
-        
-        # Setup timer for delayed filtering (better performance)
-        self.filter_timer = QTimer()
-        self.filter_timer.setSingleShot(True)
-        self.filter_timer.timeout.connect(self._apply_filter)
-        
-    def _on_text_edited(self, text: str):
-        """Handle text editing with delayed filtering"""
-        self.filter_timer.stop()
-        self.filter_timer.start(150)  # 150ms delay for better performance
-        
-    def _on_edit_text_changed(self, text: str):
-        """Handle text changes from selection"""
-        # Don't filter when user selects from dropdown
-        if self.currentIndex() >= 0:
-            return
-    
-    def _apply_filter(self):
-        """Apply search filter to regions with focus-preserving UX"""
-        filter_text = self.lineEdit().text().lower().strip() if self.lineEdit() else ""
-        
-        # Don't re-filter if text hasn't changed
-        if filter_text == self.last_filter_text:
-            return
-        
-        self.last_filter_text = filter_text
-        
-        if not filter_text:
-            # Show all regions when no filter
-            self.filtered_regions = self.all_regions.copy()
-        else:
-            # Filter regions by code, name, or location
-            self.filtered_regions = []
-            for region in self.all_regions:
-                if (filter_text in region.code.lower() or 
-                    filter_text in region.name.lower() or
-                    filter_text in region.location.lower()):
-                    self.filtered_regions.append(region)
-        
-        # Update combo box items (but preserve user's input text)
-        self._populate_combo_with_regions_smart(self.filtered_regions, filter_text)
-        
-        # CRITICAL FIX: Show dropdown without stealing focus
-        if filter_text and not self.view().isVisible():
-            self._show_popup_focus_preserving()
     
     def _fetch_regions_async(self, force_refresh: bool = False):
         """Fetch regions asynchronously"""
@@ -364,10 +312,9 @@ class DynamicLocationComboBox(QComboBox):
                 placeholder = placeholder_map.get(self.provider_type, "Type to search regions...")
                 self.lineEdit().setPlaceholderText(placeholder)
             
-            # Update regions
+            # Update regions and completer data
             self.all_regions = regions
-            self.filtered_regions = regions.copy()
-            self._populate_combo_with_regions(regions)
+            self._update_completer_data()  # Use QCompleter instead of old dropdown
             
             logger.info(f"Loaded {len(regions)} regions for {self.provider_type}")
         
@@ -400,84 +347,11 @@ class DynamicLocationComboBox(QComboBox):
                     regions.append(region)
             
             self.all_regions = regions
-            self.filtered_regions = regions.copy()
-            self._populate_combo_with_regions(regions)
+            self._update_completer_data()
             
         except Exception as e:
             logger.error(f"Failed to load static fallback: {e}")
     
-    def _populate_combo_with_regions(self, regions: List[CloudRegion]):
-        """Legacy method - now calls smart version"""
-        self._populate_combo_with_regions_smart(regions, "")
-    
-    def _populate_combo_with_regions_smart(self, regions: List[CloudRegion], filter_text: str = ""):
-        """
-        Populate combo box with region data using improved UX
-        
-        Args:
-            regions: List of regions to show
-            filter_text: Current filter text (to preserve user input)
-        """
-        # Save current text to preserve user's typing
-        current_text = self.lineEdit().text() if self.lineEdit() else ""
-        
-        # Temporarily block signals to prevent interference
-        self.blockSignals(True)
-        
-        try:
-            # Clear existing items
-            self.clear()
-            
-            if not regions and filter_text:
-                # Show "No regions found" as disabled item when filtering
-                no_match_item = f"🔍 No regions found for '{filter_text}'"
-                self.addItem(no_match_item, None)
-                # Make this item non-selectable
-                model = self.model()
-                if model and model.rowCount() > 0:
-                    item = model.item(0)
-                    if item:
-                        item.setEnabled(False)
-                        item.setFlags(item.flags() & ~Qt.ItemIsSelectable)
-            elif not regions:
-                # No regions available at all
-                self.addItem("📭 No regions available", None)
-                model = self.model()
-                if model and model.rowCount() > 0:
-                    item = model.item(0)
-                    if item:
-                        item.setEnabled(False)
-                        item.setFlags(item.flags() & ~Qt.ItemIsSelectable)
-            else:
-                # Sort regions: popular first, then alphabetically
-                popular_regions = [r for r in regions if r.popular]
-                other_regions = [r for r in regions if not r.popular]
-                
-                popular_regions.sort(key=lambda x: x.code)
-                other_regions.sort(key=lambda x: x.code)
-                
-                # Add popular regions first
-                for region in popular_regions:
-                    display_text = f"⭐ {region.code} ({region.name})"
-                    self.addItem(display_text, region.code)
-                
-                # Add separator if we have both popular and other regions
-                if popular_regions and other_regions:
-                    self.insertSeparator(len(popular_regions))
-                
-                # Add other regions
-                for region in other_regions:
-                    status_icon = "✅" if region.status == "available" else "⚠️"
-                    display_text = f"{status_icon} {region.code} ({region.name})"
-                    self.addItem(display_text, region.code)
-        
-        finally:
-            # Re-enable signals
-            self.blockSignals(False)
-            
-            # CRITICAL: Always restore user's text - never interfere with typing!
-            if current_text and self.lineEdit():
-                self.lineEdit().setText(current_text)
     
     def get_region_code(self) -> str:
         """Get the selected region code"""
@@ -510,7 +384,11 @@ class DynamicLocationComboBox(QComboBox):
         if new_provider_type != self.provider_type:
             self.provider_type = new_provider_type
             self.all_regions.clear()
-            self.filtered_regions.clear()
+            
+            # Clear completer data
+            if hasattr(self, 'completer') and self.completer:
+                self.completion_to_code.clear()
+                self.completer_model.setStringList([])
             
             # Update placeholder
             placeholder_map = {
@@ -545,8 +423,10 @@ class DynamicLocationComboBox(QComboBox):
         return None
     
     def get_filtered_count(self) -> int:
-        """Get number of filtered regions currently shown"""
-        return len(self.filtered_regions)
+        """Get number of filtered regions currently shown (via QCompleter)"""
+        if hasattr(self, 'completer_model') and self.completer_model:
+            return self.completer_model.rowCount()
+        return 0
     
     def get_total_count(self) -> int:
         """Get total number of regions available"""

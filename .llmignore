@@ -1,0 +1,70 @@
+# Concatenator Tool Default .llmignore
+# This file provides sensible defaults for codebase analysis
+# Create ./.llmignore in your project for project-specific ignores
+
+# === BINARY FILES ===
+*.exe
+*.dll
+*.so
+*.dylib
+*.bin
+*.dat
+*.pdf
+*.doc
+*.docx
+*.zip
+*.tar.gz
+*.rar
+
+# === MEDIA FILES ===
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.ico
+*.mp3
+*.mp4
+*.avi
+
+# === DEPENDENCIES ===
+node_modules/
+venv/
+env/
+.venv/
+__pycache__/
+*.egg-info/
+vendor/
+build/
+dist/
+
+# === IDE & OS FILES ===
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# === LOGS & TEMP ===
+*.log
+*.tmp
+log/
+logs/
+tmp/
+
+# === VERSION CONTROL ===
+.git/
+.svn/
+.hg/
+
+# === CONCATENATOR TOOL (auto-managed) ===
+# Exclude the entire concatenator tool directory to prevent recursion
+tools/concatenator/
+
+# === PROJECT SPECIFIC (examples) ===
+# Uncomment or add patterns specific to your project type:
+# *.csv           # Large data files
+# *.json          # Config files (if large)
+# test_output/    # Test artifacts
+# docs/build/     # Generated documentation

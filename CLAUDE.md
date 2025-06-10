@@ -16,6 +16,38 @@
 
 ---
 
+## 🔄 CONTEXT INITIALIZATION PROTOCOL (CRITICAL)
+
+**MANDATORY:** Execute this protocol at the start of EVERY conversation and whenever context may have been compacted/refreshed.
+
+### Context Refresh Detection Triggers:
+- Beginning of any new conversation
+- When you cannot recall recent task details or decisions
+- When foundational documents (DEVELOPMENT_GUIDE.md, ARCHITECTURE.md) are not in working memory
+- When architectural patterns or coding standards are unclear
+
+### IMMEDIATE INITIALIZATION SEQUENCE:
+1. **ALWAYS READ FIRST:** 
+   - `docs/DEVELOPMENT_GUIDE.md` - Core principles, patterns, and methodologies
+   - `docs/ARCHITECTURE.md` - System design and component relationships  
+   - `PROJECT_STATUS.md` - Current epic state and progress
+   - `FEEDBACK_LOG.md` - Recent lessons and workflow decisions
+
+2. **VERIFY UNDERSTANDING:**
+   - MVP pattern requirements (UI is dumb, logic in presenters)
+   - TDD methodology (failing test first, no implementation without tests)
+   - SPARC-V-L³ protocol compliance
+   - Git workflow decisions (PR vs direct merge based on context)
+
+3. **LOAD PROJECT CONTEXT:**
+   - Current task status and priorities
+   - Recent architectural decisions and patterns
+   - Active issues and their resolution approaches
+
+**NEVER SKIP THIS PROTOCOL** - Inconsistent decisions result from missing foundational context.
+
+---
+
 ## 📚 KNOWLEDGE BASE INTERACTION PROTOCOL
 
 You are required to read the following documents at specific trigger points to ensure full context:
@@ -49,3 +81,32 @@ You are required to read the following documents at specific trigger points to e
 2. **READ** and understand existing structure before reorganizing
 3. **THINK** ultra hard before executing commands
 4. **PRESERVE** valuable documentation while establishing new standards
+
+---
+
+## 🔀 GIT WORKFLOW DECISION MATRIX
+
+**CRITICAL:** Consider project context before suggesting git workflows. Avoid defaulting to enterprise patterns.
+
+### Use DIRECT MERGE (git merge --no-ff) when:
+- ✅ Solo development project
+- ✅ Merging to non-production branch (develop)
+- ✅ Code is well-tested and verified
+- ✅ Changes are focused and well-documented
+- ✅ Overhead of PR process isn't justified
+
+### Use PULL REQUEST workflow when:
+- 🔄 Major architectural changes requiring discussion
+- 🔄 External contributions from other developers
+- 🔄 Seeking explicit code review and feedback
+- 🔄 Merging to production/master branch
+- 🔄 Complex changes that benefit from CI/CD validation
+
+### Decision Factors:
+- **Project size:** Solo vs team development
+- **Branch criticality:** develop vs master/production
+- **Change complexity:** Simple fix vs architectural change
+- **Testing coverage:** Well-tested vs needs validation
+- **Review needs:** Self-sufficient vs requires discussion
+
+**Default for this project:** Direct merge to develop for tested fixes, PR only for major changes or external contributions.

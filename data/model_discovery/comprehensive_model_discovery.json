@@ -1,0 +1,454 @@
+{
+  "discovered_models": {
+    "openai": [
+      {
+        "name": "text-embedding-ada-002",
+        "provider": "openai",
+        "dimensions": 1536,
+        "max_tokens": 8191,
+        "prefix_format": "openai/text-embedding-ada-002",
+        "special_params": {
+          "supports_dimensions_param": false
+        }
+      },
+      {
+        "name": "text-embedding-3-small",
+        "provider": "openai",
+        "dimensions": 1536,
+        "max_tokens": 8191,
+        "prefix_format": "openai/text-embedding-3-small",
+        "special_params": {}
+      },
+      {
+        "name": "text-embedding-3-large",
+        "provider": "openai",
+        "dimensions": 3072,
+        "max_tokens": 8191,
+        "prefix_format": "openai/text-embedding-3-large",
+        "special_params": {}
+      }
+    ],
+    "cohere": [
+      {
+        "name": "embed-english-v3.0",
+        "provider": "cohere",
+        "dimensions": null,
+        "max_tokens": 1024,
+        "prefix_format": "cohere/embed-english-v3.0",
+        "special_params": {
+          "supports_input_type": true,
+          "input_types": [
+            "search_document",
+            "search_query",
+            "classification",
+            "clustering"
+          ]
+        }
+      },
+      {
+        "name": "embed-english-light-v3.0",
+        "provider": "cohere",
+        "dimensions": null,
+        "max_tokens": 1024,
+        "prefix_format": "cohere/embed-english-light-v3.0",
+        "special_params": {
+          "supports_input_type": true,
+          "input_types": [
+            "search_document",
+            "search_query",
+            "classification",
+            "clustering"
+          ]
+        }
+      },
+      {
+        "name": "embed-multilingual-v3.0",
+        "provider": "cohere",
+        "dimensions": null,
+        "max_tokens": 1024,
+        "prefix_format": "cohere/embed-multilingual-v3.0",
+        "special_params": {
+          "supports_input_type": true,
+          "input_types": [
+            "search_document",
+            "search_query",
+            "classification",
+            "clustering"
+          ]
+        }
+      },
+      {
+        "name": "embed-english-v2.0",
+        "provider": "cohere",
+        "dimensions": null,
+        "max_tokens": 4096,
+        "prefix_format": "cohere/embed-english-v2.0",
+        "special_params": {
+          "supports_input_type": true,
+          "input_types": [
+            "search_document",
+            "search_query",
+            "classification",
+            "clustering"
+          ]
+        }
+      },
+      {
+        "name": "embed-english-light-v2.0",
+        "provider": "cohere",
+        "dimensions": null,
+        "max_tokens": 1024,
+        "prefix_format": "cohere/embed-english-light-v2.0",
+        "special_params": {
+          "supports_input_type": true,
+          "input_types": [
+            "search_document",
+            "search_query",
+            "classification",
+            "clustering"
+          ]
+        }
+      },
+      {
+        "name": "embed-multilingual-v2.0",
+        "provider": "cohere",
+        "dimensions": null,
+        "max_tokens": 768,
+        "prefix_format": "cohere/embed-multilingual-v2.0",
+        "special_params": {
+          "supports_input_type": true,
+          "input_types": [
+            "search_document",
+            "search_query",
+            "classification",
+            "clustering"
+          ]
+        }
+      }
+    ],
+    "bedrock": [
+      {
+        "name": "amazon.titan-embed-text-v1",
+        "provider": "bedrock",
+        "dimensions": 1536,
+        "max_tokens": 8192,
+        "prefix_format": "bedrock/amazon.titan-embed-text-v1",
+        "special_params": {
+          "requires_aws_credentials": true,
+          "region_dependent": true
+        }
+      },
+      {
+        "name": "cohere.embed-english-v3",
+        "provider": "bedrock",
+        "dimensions": null,
+        "max_tokens": 512,
+        "prefix_format": "bedrock/cohere.embed-english-v3",
+        "special_params": {
+          "requires_aws_credentials": true,
+          "region_dependent": true
+        }
+      },
+      {
+        "name": "cohere.embed-multilingual-v3",
+        "provider": "bedrock",
+        "dimensions": null,
+        "max_tokens": 512,
+        "prefix_format": "bedrock/cohere.embed-multilingual-v3",
+        "special_params": {
+          "requires_aws_credentials": true,
+          "region_dependent": true
+        }
+      }
+    ],
+    "vertex_ai-embedding-models": [
+      {
+        "name": "text-embedding-004",
+        "provider": "vertex_ai-embedding-models",
+        "dimensions": 768,
+        "max_tokens": 2048,
+        "prefix_format": "vertex_ai/text-embedding-004",
+        "special_params": {
+          "requires_project_id": true,
+          "requires_location": true,
+          "default_location": "us-central1"
+        }
+      },
+      {
+        "name": "gemini-embedding-001",
+        "provider": "vertex_ai-embedding-models",
+        "dimensions": 3072,
+        "max_tokens": 2048,
+        "prefix_format": "vertex_ai/gemini-embedding-001",
+        "special_params": {
+          "requires_project_id": true,
+          "requires_location": true,
+          "default_location": "us-central1"
+        }
+      },
+      {
+        "name": "text-embedding-005",
+        "provider": "vertex_ai-embedding-models",
+        "dimensions": 768,
+        "max_tokens": 2048,
+        "prefix_format": "vertex_ai/text-embedding-005",
+        "special_params": {
+          "requires_project_id": true,
+          "requires_location": true,
+          "default_location": "us-central1"
+        }
+      },
+      {
+        "name": "text-multilingual-embedding-002",
+        "provider": "vertex_ai-embedding-models",
+        "dimensions": 768,
+        "max_tokens": 2048,
+        "prefix_format": "vertex_ai/text-multilingual-embedding-002",
+        "special_params": {
+          "requires_project_id": true,
+          "requires_location": true,
+          "default_location": "us-central1"
+        }
+      },
+      {
+        "name": "multimodalembedding",
+        "provider": "vertex_ai-embedding-models",
+        "dimensions": 768,
+        "max_tokens": 2048,
+        "prefix_format": "vertex_ai/multimodalembedding",
+        "special_params": {
+          "requires_project_id": true,
+          "requires_location": true,
+          "default_location": "us-central1"
+        }
+      },
+      {
+        "name": "multimodalembedding@001",
+        "provider": "vertex_ai-embedding-models",
+        "dimensions": 768,
+        "max_tokens": 2048,
+        "prefix_format": "vertex_ai/multimodalembedding@001",
+        "special_params": {
+          "requires_project_id": true,
+          "requires_location": true,
+          "default_location": "us-central1"
+        }
+      },
+      {
+        "name": "text-embedding-large-exp-03-07",
+        "provider": "vertex_ai-embedding-models",
+        "dimensions": 3072,
+        "max_tokens": 8192,
+        "prefix_format": "vertex_ai/text-embedding-large-exp-03-07",
+        "special_params": {
+          "requires_project_id": true,
+          "requires_location": true,
+          "default_location": "us-central1"
+        }
+      },
+      {
+        "name": "textembedding-gecko",
+        "provider": "vertex_ai-embedding-models",
+        "dimensions": 768,
+        "max_tokens": 3072,
+        "prefix_format": "vertex_ai/textembedding-gecko",
+        "special_params": {
+          "requires_project_id": true,
+          "requires_location": true,
+          "default_location": "us-central1"
+        }
+      },
+      {
+        "name": "textembedding-gecko-multilingual",
+        "provider": "vertex_ai-embedding-models",
+        "dimensions": 768,
+        "max_tokens": 3072,
+        "prefix_format": "vertex_ai/textembedding-gecko-multilingual",
+        "special_params": {
+          "requires_project_id": true,
+          "requires_location": true,
+          "default_location": "us-central1"
+        }
+      },
+      {
+        "name": "textembedding-gecko-multilingual@001",
+        "provider": "vertex_ai-embedding-models",
+        "dimensions": 768,
+        "max_tokens": 3072,
+        "prefix_format": "vertex_ai/textembedding-gecko-multilingual@001",
+        "special_params": {
+          "requires_project_id": true,
+          "requires_location": true,
+          "default_location": "us-central1"
+        }
+      },
+      {
+        "name": "textembedding-gecko@001",
+        "provider": "vertex_ai-embedding-models",
+        "dimensions": 768,
+        "max_tokens": 3072,
+        "prefix_format": "vertex_ai/textembedding-gecko@001",
+        "special_params": {
+          "requires_project_id": true,
+          "requires_location": true,
+          "default_location": "us-central1"
+        }
+      },
+      {
+        "name": "textembedding-gecko@003",
+        "provider": "vertex_ai-embedding-models",
+        "dimensions": 768,
+        "max_tokens": 3072,
+        "prefix_format": "vertex_ai/textembedding-gecko@003",
+        "special_params": {
+          "requires_project_id": true,
+          "requires_location": true,
+          "default_location": "us-central1"
+        }
+      },
+      {
+        "name": "text-embedding-preview-0409",
+        "provider": "vertex_ai-embedding-models",
+        "dimensions": 768,
+        "max_tokens": 3072,
+        "prefix_format": "vertex_ai/text-embedding-preview-0409",
+        "special_params": {
+          "requires_project_id": true,
+          "requires_location": true,
+          "default_location": "us-central1"
+        }
+      },
+      {
+        "name": "text-multilingual-embedding-preview-0409",
+        "provider": "vertex_ai-embedding-models",
+        "dimensions": 768,
+        "max_tokens": 3072,
+        "prefix_format": "vertex_ai/text-multilingual-embedding-preview-0409",
+        "special_params": {
+          "requires_project_id": true,
+          "requires_location": true,
+          "default_location": "us-central1"
+        }
+      }
+    ],
+    "fireworks_ai-embedding-models": [
+      {
+        "name": "fireworks_ai/nomic-ai/nomic-embed-text-v1.5",
+        "provider": "fireworks_ai-embedding-models",
+        "dimensions": null,
+        "max_tokens": 8192,
+        "prefix_format": "fireworks_ai/nomic-ai/nomic-embed-text-v1.5",
+        "special_params": {
+          "requires_fireworks_api_key": true
+        }
+      },
+      {
+        "name": "fireworks_ai/nomic-ai/nomic-embed-text-v1",
+        "provider": "fireworks_ai-embedding-models",
+        "dimensions": null,
+        "max_tokens": 8192,
+        "prefix_format": "fireworks_ai/nomic-ai/nomic-embed-text-v1",
+        "special_params": {
+          "requires_fireworks_api_key": true
+        }
+      },
+      {
+        "name": "fireworks_ai/WhereIsAI/UAE-Large-V1",
+        "provider": "fireworks_ai-embedding-models",
+        "dimensions": null,
+        "max_tokens": 512,
+        "prefix_format": "fireworks_ai/WhereIsAI/UAE-Large-V1",
+        "special_params": {
+          "requires_fireworks_api_key": true
+        }
+      },
+      {
+        "name": "fireworks_ai/thenlper/gte-large",
+        "provider": "fireworks_ai-embedding-models",
+        "dimensions": null,
+        "max_tokens": 512,
+        "prefix_format": "fireworks_ai/thenlper/gte-large",
+        "special_params": {
+          "requires_fireworks_api_key": true
+        }
+      },
+      {
+        "name": "fireworks_ai/thenlper/gte-base",
+        "provider": "fireworks_ai-embedding-models",
+        "dimensions": null,
+        "max_tokens": 512,
+        "prefix_format": "fireworks_ai/thenlper/gte-base",
+        "special_params": {
+          "requires_fireworks_api_key": true
+        }
+      }
+    ]
+  },
+  "best_for_academic": [
+    {
+      "name": "text-embedding-ada-002",
+      "provider": "openai",
+      "dimensions": 1536,
+      "usage_example": {
+        "model_string": "openai/text-embedding-ada-002",
+        "required_params": {
+          "api_key": "your_openai_api_key"
+        },
+        "optional_params": {},
+        "example_code": "\nfrom litellm import aembedding\n\nresponse = await aembedding(\n    model=\"openai/text-embedding-ada-002\",\n    input=\"Your text here\",\n    api_key=\"your_openai_api_key\"\n)\nembedding = response['data'][0]['embedding']\n"
+      }
+    },
+    {
+      "name": "text-embedding-3-small",
+      "provider": "openai",
+      "dimensions": 1536,
+      "usage_example": {
+        "model_string": "openai/text-embedding-3-small",
+        "required_params": {
+          "api_key": "your_openai_api_key"
+        },
+        "optional_params": {},
+        "example_code": "\nfrom litellm import aembedding\n\nresponse = await aembedding(\n    model=\"openai/text-embedding-3-small\",\n    input=\"Your text here\",\n    api_key=\"your_openai_api_key\"\n)\nembedding = response['data'][0]['embedding']\n"
+      }
+    },
+    {
+      "name": "text-embedding-3-large",
+      "provider": "openai",
+      "dimensions": 3072,
+      "usage_example": {
+        "model_string": "openai/text-embedding-3-large",
+        "required_params": {
+          "api_key": "your_openai_api_key"
+        },
+        "optional_params": {},
+        "example_code": "\nfrom litellm import aembedding\n\nresponse = await aembedding(\n    model=\"openai/text-embedding-3-large\",\n    input=\"Your text here\",\n    api_key=\"your_openai_api_key\"\n)\nembedding = response['data'][0]['embedding']\n"
+      }
+    },
+    {
+      "name": "amazon.titan-embed-text-v1",
+      "provider": "bedrock",
+      "dimensions": 1536,
+      "usage_example": {
+        "model_string": "bedrock/amazon.titan-embed-text-v1",
+        "required_params": {},
+        "optional_params": {},
+        "example_code": null
+      }
+    },
+    {
+      "name": "text-embedding-large-exp-03-07",
+      "provider": "vertex_ai-embedding-models",
+      "dimensions": 3072,
+      "usage_example": {
+        "model_string": "vertex_ai/text-embedding-large-exp-03-07",
+        "required_params": {
+          "vertex_project": "your_gcp_project_id"
+        },
+        "optional_params": {
+          "vertex_location": "us-central1"
+        },
+        "example_code": "\nfrom litellm import aembedding\n\nresponse = await aembedding(\n    model=\"vertex_ai/text-embedding-large-exp-03-07\",\n    input=\"Your text here\",\n    vertex_project=\"your_gcp_project_id\",\n    vertex_location=\"us-central1\"\n)\nembedding = response['data'][0]['embedding']\n"
+      }
+    }
+  ]
+}

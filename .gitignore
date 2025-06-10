@@ -72,3 +72,19 @@ credentials.json
 calibre-semantic-search-*.zip# Backup files
 *_backup.py
 .local-analysis/
+
+# Codebase Concatenator outputs
+codebase_analysis.md
+codebase_*.md
+current_analysis.md
+enhanced_analysis.md
+codebase_config.yaml
+codebase_config.json
+# Token counting and analysis files
+*.token_count
+analysis_cache.json
+
+# Concatenator tool and dependencies  
+.concatenator_deps/
+tools/concatenator/
+.claude_commands/

@@ -34,7 +34,14 @@ class SemanticSearchPlugin(InterfaceActionBase):
         # Import here to avoid loading Qt at startup
         from calibre_plugins.semantic_search.config import ConfigWidget
 
-        return ConfigWidget()
+        cw = ConfigWidget()
+        
+        # Pass the actual interface action if it exists
+        # actual_plugin_ is the SemanticSearchInterface instance
+        if hasattr(self, 'actual_plugin_') and self.actual_plugin_:
+            cw.plugin_interface = self.actual_plugin_
+        
+        return cw
 
     def save_settings(self, config_widget):
         """Save configuration settings"""

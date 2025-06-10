@@ -15,7 +15,9 @@
 
 ### Morning: Setup & Validation (Phase 0)
 ```bash
-# 1. Create working branch
+# 1. Ensure on develop branch and create working branch
+git checkout develop
+git pull origin develop
 git checkout -b feature/fix-integration-phase-0
 
 # 2. Run existing tests to establish baseline
@@ -206,6 +208,12 @@ except:
 - This ensures documentation is never out of sync with code
 - Perfect traceability between commits and documentation
 - Other developers/AI assistants can quickly understand current state
+
+### Git Flow Rules:
+- **Always base feature branches off `develop`**
+- **Always create PRs to `develop` branch, never `master`**
+- Only release PRs go from `develop` → `master`
+- Use conventional commit format with requirement IDs
 
 ---
 

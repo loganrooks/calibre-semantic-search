@@ -30,14 +30,41 @@ class BackgroundJobManager:
         self.active_jobs: Dict[str, threading.Thread] = {}
         self.cancelled_jobs: set = set()
         
-    def start_indexing_job(self, book_ids: list, callback: Optional[Callable] = None) -> str:
+    def start_indexing_job(self, book_ids: list, callback: Optional[Callable] = None, 
+                          indexing_service=None, gui=None) -> str:
         """Start an indexing job for given book IDs"""
         job_id = str(uuid.uuid4())
         
         def job_wrapper():
             try:
-                # Simulate indexing work
-                result = {"success": True, "indexed_books": len(book_ids)}
+                if indexing_service:
+                    # Do real indexing work
+                    import asyncio
+                    
+                    # Create event loop for this thread
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    
+                    try:
+                        # Run the indexing
+                        stats = loop.run_until_complete(
+                            indexing_service.index_books(book_ids, reindex=False)
+                        )
+                        
+                        # Format result for callback
+                        result = {
+                            "successful_books": stats.get('successful_books', 0),
+                            "failed_books": stats.get('failed_books', 0),
+                            "total_chunks": stats.get('total_chunks', 0),
+                            "total_time": stats.get('total_time', 0),
+                            "errors": stats.get('errors', [])
+                        }
+                        
+                    finally:
+                        loop.close()
+                else:
+                    # Fallback for test environment - simulate work
+                    result = {"successful_books": len(book_ids), "failed_books": 0, "total_chunks": 0, "total_time": 0}
                 
                 # Call completion callback safely on main thread
                 if callback:

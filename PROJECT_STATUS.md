@@ -1,7 +1,7 @@
 # Project Status - Calibre Semantic Search Plugin
 
-**Current Operation:** BLUEPRINT OPERATION CLEAN SLATE  
-**Last Updated:** 2025-06-09  
+**Current Operation:** BLUEPRINT OPERATION CLEAN SLATE - Phase 4 Evolution  
+**Last Updated:** 2025-06-10  
 **Version:** 0.9.0 → 1.0.0 (in progress)
 
 ## Operation Clean Slate Progress
@@ -39,10 +39,15 @@
 - [x] Execute UI rework plan for focus bug ✅ COMPLETE
 - [x] Refactor ConfigWidget to MVP pattern ✅ COMPLETE (MASSIVE TRANSFORMATION)
 
-### Phase 4: Long-Term Evolution
+### Phase 4: Long-Term Evolution ⚡ IN PROGRESS
+- [x] Fix LOCATION-UI-20250605-0840 (Qt enum access, SimpleLocationCombo) ✅ COMPLETE
+- [x] Add context initialization protocol to CLAUDE.md ✅ COMPLETE  
+- [x] Add git workflow decision matrix to CLAUDE.md ✅ COMPLETE
+- [ ] Settings UI enhancement for philosophical research workflows
+- [ ] Citation management system foundation
+- [ ] Provider plugin system architecture
 - [ ] Decouple repositories.py
 - [ ] Centralize error handling
-- [ ] Implement provider plugin system
 - [ ] Set up automated L³ review process
 
 ## Test Suite Status
@@ -50,14 +55,16 @@
 - **FAILING:** 50% (5/10 categories)
 - **TIMEOUT:** 10% (1/10 categories)
 
-## Critical Issues
-1. **EPUB indexing returns 0 books** - Core functionality broken
-2. **ThreadedJob import in interface.py** - Calibre integration broken
-3. **Focus-stealing bug** - UI unusable for continuous typing
-4. **Missing index_detector module** - UI component not found
-5. **Async mocking errors** - Test infrastructure issues
+## Critical Issues (Updated 2025-06-10)
+1. ✅ **Focus-stealing bug** - RESOLVED via SimpleLocationCombo implementation
+2. ✅ **ThreadedJob import in interface.py** - RESOLVED via BackgroundJobManager refactoring  
+3. ✅ **Missing index_detector module** - RESOLVED via IndexDetector creation
+4. ✅ **Async mocking errors** - RESOLVED via AsyncMock fixes
+5. **EPUB indexing returns 0 books** - Core functionality broken (REMAINING)
 
-## Next Immediate Actions
-1. Complete Phase 1 document creation
-2. Create detailed TEST_SUITE_REPAIR_PLAN.md
-3. Begin Phase 2 test repairs starting with CRITICAL issues
+## Next Immediate Actions (Phase 4 Evolution)
+1. **Settings UI Enhancement** - Improve configuration experience for philosophical research workflows
+2. **Citation Management Foundation** - Design system for academic reference tracking
+3. **Provider Plugin Architecture** - Design extensible embedding provider system
+4. **Core Functionality Fix** - Resolve remaining EPUB indexing issue (0 books returned)
+5. **Feature Expansion** - Implement missing features from semantic_docs specifications

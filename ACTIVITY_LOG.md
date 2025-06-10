@@ -98,3 +98,26 @@ This log tracks all development actions taken as part of the SPARC-V-L³ protoco
     - **Cleanup Commit (f776d98)**: Workspace organization, file cleanup, documentation updates, test file organization
     - **Maintenance Commit (d91eebf)**: Add .claude_commands/ to gitignore for Claude Code integration
 *   **Rationale:** Clean commit history with cross-references to activity log enables proper git workflow, change tracking, and future development context understanding.
+
+### [2025-06-10-183000] - LOCATION-UI-20250605-0840 Resolution & Git Workflow Documentation
+*   **Goal:** Complete location dropdown fix and establish systematic git workflow decision process
+*   **Analysis:** Fixed Qt enum access issue causing location dropdown failures, committed working solution, debated PR vs direct merge workflow
+*   **Actions:**
+    - **Qt Compatibility Fix**: Replaced QCompleter.PopupCompletion with QCompleter.CompletionMode.PopupCompletion for Calibre Qt 5.12 compatibility
+    - **SimpleLocationCombo Implementation**: Created simplified widget with proper parent assignment and standard Qt behavior
+    - **Manual Verification**: User confirmed "it works!" after plugin build and testing
+    - **Git Workflow Decision**: Analyzed PR vs direct merge approaches, chose direct merge for solo development context
+    - **Direct Merge Execution**: Used `git merge --no-ff` to preserve feature context while avoiding PR overhead
+    - **Documentation**: Added comprehensive git workflow decision matrix and context initialization protocol to CLAUDE.md
+    - **Status Updates**: Updated PROJECT_STATUS.md and CHANGELOG.md to reflect completed Phase 4 work
+*   **Rationale:** Systematic resolution of UI bug with proper verification, establishment of context-appropriate git workflows, and comprehensive documentation updates to maintain project coherence
+
+### [2025-06-10-190000] - Context Initialization & Next Phase Planning
+*   **Goal:** Execute mandatory context initialization protocol and analyze next development priorities
+*   **Analysis:** Successfully loaded foundational documents (ARCHITECTURE.md, DEVELOPMENT_GUIDE.md, PROJECT_STATUS.md) and assessed current Phase 4 evolution state
+*   **Actions:**
+    - **Context Protocol Execution**: Read all foundational documents per CLAUDE.md mandatory initialization sequence
+    - **Project Status Assessment**: Updated status documents to reflect 4/5 critical issues resolved, Phase 4 active
+    - **Priority Analysis**: Identified settings UI enhancement, citation management, and provider architecture as next evolution targets
+    - **Documentation Sync**: Ensured PROJECT_STATUS.md, CHANGELOG.md, and ACTIVITY_LOG.md reflect current state
+*   **Rationale:** Proper context loading ensures consistent decision-making and accurate priority assessment for Phase 4 evolution work

@@ -6,9 +6,19 @@ filtering capabilities and custom entry support.
 """
 
 from typing import Optional
-from PyQt5.Qt import QComboBox, QCompleter, Qt
 
-from calibre_plugins.semantic_search.core.cloud_regions import CloudRegionsData
+# Use Calibre's Qt abstraction layer
+try:
+    from qt.core import QComboBox, QCompleter, Qt
+except ImportError:
+    # Fallback for testing outside Calibre
+    from PyQt5.Qt import QComboBox, QCompleter, Qt
+
+try:
+    from calibre_plugins.semantic_search.core.cloud_regions import CloudRegionsData
+except ImportError:
+    # Fallback for relative import during development
+    from ..core.cloud_regions import CloudRegionsData
 
 
 class LocationComboBox(QComboBox):
@@ -36,8 +46,9 @@ class LocationComboBox(QComboBox):
         # Configure completer for better search experience
         completer = self.completer()
         if completer:
-            completer.setCompletionMode(QCompleter.PopupCompletion)
-            completer.setCaseSensitivity(Qt.CaseInsensitive)
+            # Use proper enum access for Calibre's Qt
+            completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+            completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
     
     def _populate_regions(self):
         """Populate the combo box with regions for the provider"""

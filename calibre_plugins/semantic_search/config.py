@@ -169,8 +169,17 @@ class ConfigWidget(QWidget):
         self.vertex_project_edit.setPlaceholderText("your-gcp-project-id")
         vertex_layout.addRow("Project ID*:", self.vertex_project_edit)
         
-        self.vertex_location_edit = QLineEdit()
-        self.vertex_location_edit.setText("us-central1")
+        # Create location dropdown with fallback to QLineEdit
+        try:
+            from .ui.simple_location_combo import SimpleLocationCombo
+            self.vertex_location_edit = SimpleLocationCombo("vertex_ai", self)
+            self.vertex_location_edit.set_region_code("us-central1")
+            self.logger.info("Using SimpleLocationCombo for Vertex AI location")
+        except Exception as e:
+            self.logger.warning(f"Failed to create SimpleLocationCombo: {e}")
+            self.vertex_location_edit = QLineEdit()
+            self.vertex_location_edit.setText("us-central1")
+            self.vertex_location_edit.setPlaceholderText("e.g., us-central1, europe-west1")
         vertex_layout.addRow("Location:", self.vertex_location_edit)
         
         layout.addWidget(self.vertex_group)
@@ -190,8 +199,17 @@ class ConfigWidget(QWidget):
         self.direct_vertex_project_edit.setPlaceholderText("your-gcp-project-id")
         direct_vertex_layout.addRow("Project ID*:", self.direct_vertex_project_edit)
         
-        self.direct_vertex_location_edit = QLineEdit()
-        self.direct_vertex_location_edit.setText("us-central1")
+        # Create location dropdown with fallback to QLineEdit
+        try:
+            from .ui.simple_location_combo import SimpleLocationCombo
+            self.direct_vertex_location_edit = SimpleLocationCombo("direct_vertex_ai", self)
+            self.direct_vertex_location_edit.set_region_code("us-central1")
+            self.logger.info("Using SimpleLocationCombo for Direct Vertex AI location")
+        except Exception as e:
+            self.logger.warning(f"Failed to create SimpleLocationCombo: {e}")
+            self.direct_vertex_location_edit = QLineEdit()
+            self.direct_vertex_location_edit.setText("us-central1")
+            self.direct_vertex_location_edit.setPlaceholderText("e.g., us-central1, europe-west1")
         direct_vertex_layout.addRow("Location:", self.direct_vertex_location_edit)
         
         self.direct_vertex_dimensions_spin = QSpinBox()
@@ -512,8 +530,16 @@ class ConfigWidget(QWidget):
     
     def set_vertex_location(self, location):
         """Simple setter - just update UI"""
-        self.vertex_location_edit.setText(location)
-        self.direct_vertex_location_edit.setText(location)
+        # Handle both SimpleLocationCombo and QLineEdit
+        if hasattr(self.vertex_location_edit, 'set_region_code'):
+            self.vertex_location_edit.set_region_code(location)
+        else:
+            self.vertex_location_edit.setText(location)
+        
+        if hasattr(self.direct_vertex_location_edit, 'set_region_code'):
+            self.direct_vertex_location_edit.set_region_code(location)
+        else:
+            self.direct_vertex_location_edit.setText(location)
     
     def set_vertex_dimensions(self, dimensions):
         """Simple setter - just update UI"""
@@ -591,7 +617,11 @@ class ConfigWidget(QWidget):
     
     def get_vertex_location(self):
         """Simple getter - just read UI"""
-        return self.direct_vertex_location_edit.text().strip()
+        # Handle both SimpleLocationCombo and QLineEdit
+        if hasattr(self.direct_vertex_location_edit, 'get_region_code'):
+            return self.direct_vertex_location_edit.get_region_code()
+        else:
+            return self.direct_vertex_location_edit.text().strip()
     
     def get_vertex_dimensions(self):
         """Simple getter - just read UI"""

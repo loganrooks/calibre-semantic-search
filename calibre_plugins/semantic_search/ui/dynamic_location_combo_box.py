@@ -183,8 +183,10 @@ class DynamicLocationComboBox(QComboBox):
             print(f"[COMBO] ✅ QCompleter and model created")
             
             # Configure completer for optimal UX
-            self.completer.setCaseSensitivity(Qt.CaseInsensitive)
-            self.completer.setFilterMode(Qt.MatchContains)  # Match anywhere in string
+            # Use proper enum access for Calibre's Qt
+            self.completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+            if hasattr(self.completer, 'setFilterMode'):
+                self.completer.setFilterMode(Qt.MatchFlag.MatchContains)  # Match anywhere in string
             self.completer.setMaxVisibleItems(15)
             print(f"[COMBO] ✅ QCompleter configured")
             
@@ -294,7 +296,7 @@ class DynamicLocationComboBox(QComboBox):
     
     def _setup_refresh_functionality(self):
         """Setup refresh functionality with context menu"""
-        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
     
     def _show_context_menu(self, position):
